@@ -1,6 +1,18 @@
 [package]
 name = "emx-note"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "A Zettelkasten-style note management tool"
+repository = "https://github.com/coreseekdev/emx-note"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+
+[lib]
+name = "emx_note"
+path = "src/lib.rs"
+
+[[bin]]
+name = "emx-note"
+path = "src/main.rs"
