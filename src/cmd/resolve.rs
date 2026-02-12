@@ -2,6 +2,7 @@
 
 use std::io;
 use std::fs;
+use emx_note::util;
 
 /// Resolve a capsa by name, or use the default.
 /// Auto-creates the default capsa if it doesn't exist.
@@ -30,11 +31,10 @@ fn create_default_capsa(ctx: &emx_note::ResolveContext, name: &str) -> io::Resul
 
     // Create the directory and subdirectories
     fs::create_dir_all(&capsa_path)?;
-    fs::create_dir_all(capsa_path.join("daily"))?;
-    fs::create_dir_all(capsa_path.join(".template"))?;
+    fs::create_dir_all(capsa_path.join("#daily"))?;
 
     eprintln!("Auto-created default capsa: {}", name);
-    eprintln!("  Path: {}", capsa_path.display());
+    eprintln!("  Path: {}", util::display_path(&capsa_path));
 
     Ok(emx_note::CapsaRef {
         name: prefixed_name,

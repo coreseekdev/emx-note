@@ -4,6 +4,7 @@ use std::io::{self, Write, Read};
 use std::fs::{self, OpenOptions};
 use chrono::Local;
 use emx_note::CapsaRef;
+use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<String>) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
@@ -19,14 +20,14 @@ pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<Str
     let slug = if title == "Daily Note" {
         String::new()
     } else {
-        format!("-{}", slugify(&title))
+        format!("-{}", util::slugify(&title))
     };
 
     // Generate filename: HHmmSS[-title].md
     let filename = format!("{}{}.md", time_str, slug);
 
-    // Create daily subdirectory
-    let daily_dir = capsa_ref.path.join("daily").join(&date_str);
+    // Create daily subdirectory: #daily/YYYYMMDD/
+    let daily_dir = capsa_ref.path.join("#daily").join(&date_str);
     fs::create_dir_all(&daily_dir)?;
 
     // Create note file
@@ -38,11 +39,11 @@ pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<Str
     // Write the file
     fs::write(&note_path, content)?;
 
-    // Update daily link file (YYYYMMDD.md)
+    // Update daily link file (note/#daily.md)
     update_daily_link(&capsa_ref, &date_str, &date_display, &filename, &title)?;
 
     // Output full path for shell pipeline compatibility
-    println!("{}", note_path.display());
+    println!("{}", util::display_path(&note_path));
 
     Ok(())
 }
@@ -58,40 +59,33 @@ fn read_stdin_content() -> io::Result<String> {
     }
 }
 
-/// Update the daily link file (YYYYMMDD.md) with new note link
+/// Update the daily link file (note/#daily.md) with new note link
 fn update_daily_link(
     capsa_ref: &CapsaRef,
     date_str: &str,
-    date_display: &str,
+    _date_display: &str,
     filename: &str,
     title: &str,
 ) -> io::Result<()> {
-    let daily_link_path = capsa_ref.path.join("daily").join(format!("{}.md", date_str));
+    let note_dir = capsa_ref.path.join("note");
+    let daily_link_path = note_dir.join("#daily.md");
+
+    // Ensure note/ directory exists
+    fs::create_dir_all(&note_dir)?;
 
     // Create or append to the daily link file
     let mut file = if daily_link_path.exists() {
         OpenOptions::new().append(true).open(&daily_link_path)?
     } else {
-        // Create new file with date header
+        // Create new file with title
         let mut file = fs::File::create(&daily_link_path)?;
-        writeln!(file, "# {}\n", date_display)?;
+        writeln!(file, "# Daily Notes\n")?;
         file
     };
 
-    // Add link to the new note (relative path from daily/ directory)
-    // Link format: [title](./YYYYMMDD/filename)
-    writeln!(file, "- [{}]({}/{})", title, date_str, filename)?;
+    // Add link to the new note
+    // Link format: - [title](#daily/YYYYMMDD/filename)
+    writeln!(file, "- [{}](#daily/{}/{})", title, date_str, filename)?;
 
     Ok(())
-}
-
-/// Convert title to slug (lowercase, replace spaces with hyphens)
-fn slugify(title: &str) -> String {
-    title
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .trim_matches('-')
-        .to_string()
 }

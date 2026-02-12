@@ -12,16 +12,16 @@ cargo install --path .
 
 ```bash
 # Create a new note collection (capsa)
-emx-note capssa create my-notes
+emx-note capsa create my-notes
 
 # Set it as default
 emx-note set-default my-notes
 
-# Create a note
-emx-note create hello-world
+# Create a permanent note
+echo "# Hello World" | emx-note note "hello-world"
 
 # Create today's daily note
-emx-note daily
+echo "Meeting notes" | emx-note daily "standup"
 
 # Print a note
 emx-note print hello-world
@@ -52,93 +52,83 @@ These options can be used with any command:
 
 ### `daily` - Create Daily Note
 
-Create today's daily note. Daily notes are organized in `daily/YYYYMMDD/` directories with timestamp-based filenames.
+Create a temporary/daily note. Daily notes are organized in `#daily/YYYYMMDD/` directories with timestamp-based filenames.
 
 ```bash
 emx-note daily [title]
 ```
 
 **Options:**
-- `title` - Optional title for the daily note (default: "Daily Note")
+- `title` - Optional title for the daily note
+
+**Content:** Read from stdin (empty file if no input).
+
+**Output:** Full path to the created note file.
 
 **Examples:**
 ```bash
-# Create a basic daily note
+# Create empty daily note
 emx-note daily
 
-# Create with custom title
-emx-note daily "Team Standup"
-
-# Creates: daily/20250212/143022-team-standup.md
+# Create with content from stdin
+echo "Meeting notes" | emx-note daily "standup"
+# Output: /home/user/.emx-notes/default/#daily/20260212/143022-standup.md
 ```
 
-**Template Support:**
-Create a template at `.template/DAILY.md` in your capsa with placeholders:
-- `{{title}}` - Note title
-- `{{date}}` - Date (YYYY-MM-DD)
-- `{{datetime}}` - Full datetime (YYYY-MM-DD HH:MM:SS)
+**Directory Structure:**
+```
+capsa/
+├── #daily/
+│   └── 20260212/
+│       ├── 143022.md
+│       └── 150845-standup.md
+└── note/
+    └── #daily.md       # Index with links to all daily notes
+```
 
 ---
 
-### `create` - Create a Note
+### `note` - Create Permanent Note
 
-Create a new note with content from argument or stdin.
+Create a permanent note in the `note/` directory. Use `-s/--source` for literature notes with source tracking.
 
 ```bash
-emx-note create <note_name> [OPTIONS]
+emx-note note [title] [OPTIONS]
 ```
 
 **Options:**
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--content <TEXT|- >` | `-C` | Note content (use `-` to read from stdin) |
+| `--source <TEXT>` | `-s` | Source of the note (creates in hash subdirectory) |
 
-**Content Reading Behavior:**
-1. With `-C "text"`: Use the provided text directly
-2. With `-C -`: Read from stdin
-3. Without `-C`: Read from stdin (empty string if no data)
+**Content:** Read from stdin (empty file if no input).
 
-**Examples:**
-```bash
-# Create empty note
-emx-note create ideas
+**Output:** Full path to the created note file.
 
-# Create with inline content
-emx-note create todo --content "# Tasks\n- [ ] Task 1"
-
-# Read from stdin
-echo "# Meeting Notes" | emx-note create meeting -
-emx-note create notes --content -
-
-# Pipe content
-cat draft.md | emx-note create final/draft
-```
-
----
-
-### `copy` - Copy Notes (TBD)
-
-Copy a note to a new location. Useful for copying from `daily/` to permanent storage locations like `持久/` (persistent) or `文献/` (literature), following Zettelkasten principles.
-
-```bash
-emx-note copy <source> <dest> [OPTIONS]
-```
-
-**Options:**
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--overwrite` | `-W` | Overwrite destination if exists |
+**Filename Rules:**
+- No title: `YYYYMMDDHHmmSS.md` (full timestamp)
+- With title, no source: `{slug}.md` (title converted to slug)
+- With source: `note/{hash}/{slug}.md`
 
 **Examples:**
 ```bash
-# Copy daily note to permanent storage
-emx-note copy daily/20250212/143022.md 持久/team-meeting.md
+# Create permanent note with timestamp
+emx-note note
 
-# Copy to literature folder
-emx-note copy daily/20250212/150845-idea.md 文献/20250212-idea.md
+# Create with title
+echo "Content here" | emx-note note "my-idea"
+# → note/my-idea.md
+
+# Create literature note with source
+echo "Book summary" | emx-note note "book-xyz" --source "book:xyz"
+# → note/{hash}/book-xyz.md
+# → note/{hash}/.source (contains "book:xyz")
 ```
 
-**Note:** This command is under design consideration.
+**Source Hashing:**
+- Source string is hashed using SHA256
+- First 12 characters of hash used as directory name (git-style abbreviation)
+- Original source stored in `.source` file
 
 ---
 
@@ -147,37 +137,56 @@ emx-note copy daily/20250212/150845-idea.md 文献/20250212-idea.md
 Delete a note from the capsa.
 
 ```bash
-emx-note delete <note_path>
+emx-note delete <note_reference>
 ```
 
-**Example:**
+**Note Reference:** Uses the same resolution rules as `print` (see above).
+
+**Examples:**
 ```bash
 emx-note delete old-note
-emx-note delete drafts/unused-idea
+emx-note delete 20260212/22     # Delete by date + time prefix
+emx-note delete some-task       # Delete by title prefix
 ```
 
 ---
 
 ### `list` - List Notes
 
-List all notes in the capsa or a specific directory.
+List notes in the capsa with various filter options.
 
 ```bash
-emx-note list [path]
+emx-note list [filter]
 ```
 
 **Aliases:** `ls`
 
+**Filter Types:**
+
+| Filter | Description |
+|--------|-------------|
+| (none) | List top-level `.md` files in `note/` (excludes hash subdirectories) |
+| `#tag` | Show contents of tag file `note/#tag.md` |
+| `#daily` | List date subdirectories in `#daily/` (dates only) |
+| source string | Hash the source, then list notes in `note/{hash}/` |
+| date (YYYYMMDD) | List notes in `#daily/YYYYMMDD/` |
+
 **Examples:**
 ```bash
-# List all notes (root directory)
+# List all top-level notes in note/
 emx-note list
 
-# List notes in a subdirectory
-emx-note list docs
+# List notes for a specific source (hashes the source string)
+emx-note list "book:xyz"
 
-# List daily notes
-emx-note list daily
+# List notes for a specific date
+emx-note list "20260212"
+
+# List all dates with daily notes
+emx-note list "#daily"
+
+# Show contents of a tag
+emx-note list "#rust"
 ```
 
 ---
@@ -187,23 +196,41 @@ emx-note list daily
 Print note content to stdout.
 
 ```bash
-emx-note print <note_name> [OPTIONS]
+emx-note print <note_reference>
 ```
-
-**Options:**
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--mentions` | `-m` | Include backlink list (notes that link to this note) |
 
 **Aliases:** `p`
 
+**Note Reference Resolution:**
+
+Notes are resolved using flexible prefix matching. The resolution follows these rules in order:
+
+| Format | Description | Example |
+|--------|-------------|---------|
+| `YYYYMMDD/prefix` | Date-specific search in `#daily/YYYYMMDD/` | `20260212/some` → `222714-some-task.md` |
+| `YYYYMMDD\prefix` | Same as above (backslash normalized) | `20260212\22` → `222714-task.md` |
+| `HH...` | Today's date + time prefix (1-6 digits) | `22` → `222714-task.md` |
+| `HHmmSS-prefix` | Hybrid: exact timestamp + title prefix | `222714-s` → `222714-some-task.md` |
+| `title` | Title prefix search (today's daily, then note/, then index files) | `some` → `some-task.md` |
+| `YYYYMMDDHHmmSS` | Full timestamp (14 digits) | `20260212222714` → `222714-task.md` |
+
+**Path Separator:** Both `/` and `\` are supported and normalized to `/`.
+
 **Examples:**
 ```bash
-# Print note content
+# Print by exact name
 emx-note print hello-world
 
-# Print with backlinks
-emx-note print hello-world --mentions
+# Print by time prefix (today's daily notes)
+emx-note print 22              # Matches 222714-*.md
+emx-note print 2227            # Matches 222714-*.md
+
+# Print by date and title prefix
+emx-note print 20260212/some   # Matches *some*.md in #daily/20260212/
+emx-note print 20260212\22     # Same as above (Windows-style)
+
+# Print by hybrid timestamp + title prefix
+emx-note print 20260212/222714-s  # Matches 222714-s*.md
 ```
 
 ---
@@ -243,8 +270,10 @@ emx-note search-content "TODO"
 Manage YAML frontmatter in notes.
 
 ```bash
-emx-note frontmatter <note_name> <action>
+emx-note frontmatter <note_reference> <action>
 ```
+
+**Note Reference:** Uses the same resolution rules as `print` (see above).
 
 **Aliases:** `fm`
 
@@ -283,36 +312,36 @@ emx-note fm note delete --key "meta.status"
 
 ---
 
-### `capssa` - Manage Note Collections
+### `capsa` - Manage Note Collections
 
 Manage capsae (note collections/vaults).
 
 ```bash
-emx-note capssa <command>
+emx-note capsa <command>
 ```
 
-#### `capssa list` - List All Collections
+#### `capsa list` - List All Collections
 ```bash
-emx-note capssa list
+emx-note capsa list
 ```
 
-#### `capssa create` - Create New Collection
+#### `capsa create` - Create New Collection
 ```bash
-emx-note capssa create <name>
+emx-note capsa create <name>
 ```
 
 **Restrictions:** Names cannot start with `.` (reserved for system use).
 
-#### `capssa info` - Show Collection Info
+#### `capsa info` - Show Collection Info
 ```bash
-emx-note capssa info [--name <name>]
+emx-note capsa info [--name <name>]
 ```
 
 Default name is `.default` (or agent name when using agent mode).
 
-#### `capssa delete` - Delete Collection
+#### `capsa delete` - Delete Collection
 ```bash
-emx-note capssa delete <name>
+emx-note capsa delete <name>
 ```
 
 **Restrictions:**
@@ -404,14 +433,14 @@ emx-note gc --verbose
 ```
 
 **Skipped Directories:**
-- `.template/` - Template files
-- `daily/` - Daily notes
+- `#daily/` - Daily notes (temporary)
+- `note/` - Permanent notes (already curated)
 
 ---
 
 ### `tag` / `label` - Manage Tags
 
-Manage tags (stored as `#tagname.md` files in the capsa root).
+Manage tags (stored as `#tagname.md` files in the capsa root directory).
 
 ```bash
 emx-note tag <command>
@@ -454,6 +483,9 @@ emx-note tag list
 
 # List notes in a specific tag
 emx-note tag list rust
+
+# Alternative using list command
+emx-note list "#rust"
 ```
 
 #### `tag delete` - Delete Tag
@@ -467,6 +499,7 @@ emx-note tag delete old-tag
 ```
 
 **Tag File Format:**
+Tags are stored as `#tagname.md` in the capsa root directory:
 ```markdown
 # tagname
 
@@ -476,6 +509,22 @@ emx-note tag delete old-tag
 
 ## 2025-02-10
 - [Old Note](old.md)
+```
+
+---
+
+### `move` - Move/Rename Notes
+
+Move or rename notes within the capsa, updating any links that reference them.
+
+```bash
+emx-note move <source> <dest>
+```
+
+**Example:**
+```bash
+emx-note move old-note.md new-note.md
+emx-note move draft.md ideas/refined-draft.md
 ```
 
 ---
@@ -490,7 +539,7 @@ When `$EMX_AGENT_NAME` is set, capsa operations are automatically prefixed:
 export EMX_AGENT_NAME="agent1"
 
 # Creates capsa "agent1-shared-notes"
-emx-note capssa create shared-notes
+emx-note capsa create shared-notes
 
 # Access agent1's personal default (resolves to "agent1")
 emx-note daily
@@ -500,7 +549,7 @@ Use `-g/--global` to bypass agent prefixing:
 
 ```bash
 # Access global "shared-notes" instead of "agent1-shared-notes"
-emx-note --global capssa create shared-notes
+emx-note --global capsa create shared-notes
 ```
 
 ### Link Files
@@ -526,19 +575,24 @@ The default capsa is resolved in this priority order:
 2. **`$EMX_AGENT_NAME`** - Agent's personal default (when set and not global)
 3. **`.default`** - System default directory
 
-### Daily Notes Structure
+### Directory Structure
 
 ```
 capsa/
-├── daily/
-│   ├── 20250212.md          # Link file (today's daily index)
-│   └── 20250212/
-│       ├── 143022.md        # First note of the day
-│       ├── 150845-team.md   # Note with title
-│       └── 161030.md        # Another note
+├── #daily/                    # Daily notes (temporary)
+│   ├── 20260212/
+│   │   ├── 143022.md
+│   │   └── 150845-standup.md
+│   └── 20260213/
+├── #rust.md                   # Tag file (root directory)
+├── #todo.md                   # Another tag file
+└── note/                      # Permanent notes
+    ├── #daily.md              # Daily notes index
+    ├── my-idea.md
+    └── {hash}/                # Literature notes with sources
+        ├── book-xyz.md
+        └── .source            # Contains "book:xyz"
 ```
-
-The `daily/YYYYMMDD.md` file contains links to all notes created that day.
 
 ### Zettelkasten Workflow
 
@@ -546,26 +600,9 @@ The recommended workflow for Zettelkasten-style note management:
 
 1. **Capture** - Use `emx-note daily` for quick daily notes
 2. **Process** - Review daily notes and identify valuable content
-3. **Copy** - Copy valuable notes to permanent locations:
-   - `persistent/` - Persistent notes
-   - `literature/` - Literature/reference notes
+3. **Curate** - Move valuable notes to permanent locations using `emx-note note` with appropriate titles
 4. **Link** - Create connections between notes using markdown links
 5. **Tag** - Use tags for cross-cutting organization
-
----
-
-## Implementation Notes
-
-**Pending Changes:**
-
-1. **`create` command modifications:**
-   - Remove `--append` option (to be implemented separately)
-   - Remove `--open` option (not suitable for CLI environment)
-   - Add stdin reading support (`-C -` or default to stdin)
-
-2. **`copy` command (TBD):**
-   - Design under consideration for copying notes from `daily/` to permanent storage
-   - Would replace the need for `move` command
 
 ---
 

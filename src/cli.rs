@@ -43,20 +43,6 @@ pub enum Command {
         source: Option<String>,
     },
 
-    /// Create a new note
-    Create {
-        /// Note name (can include path)
-        note_name: String,
-
-        /// Initial content for the note ("-" to read from stdin, or reads from stdin by default)
-        #[arg(short = 'C', long)]
-        content: Option<String>,
-
-        /// Overwrite existing note
-        #[arg(short = 'W', long)]
-        overwrite: bool,
-    },
-
     /// Move/rename a note (updates all links)
     Move {
         /// Current note path
@@ -66,30 +52,17 @@ pub enum Command {
         new: String,
     },
 
-    /// Copy a note to a new location
-    Copy {
-        /// Source note path
-        source: String,
-
-        /// Destination note path
-        dest: String,
-
-        /// Overwrite destination if exists
-        #[arg(short = 'W', long)]
-        overwrite: bool,
-    },
-
     /// Delete a note
     Delete {
         /// Note relative path
         note_path: String,
     },
 
-    /// List notes in the capsa
+    /// List notes
     #[command(alias = "ls")]
     List {
-        /// Relative path (default: root directory)
-        path: Option<String>,
+        /// Filter: #tag, date hash, or leave empty for note/ root
+        filter: Option<String>,
     },
 
     /// Print note content to stdout
@@ -97,10 +70,6 @@ pub enum Command {
     Print {
         /// Note name or relative path
         note_name: String,
-
-        /// Include backlink list
-        #[arg(short, long)]
-        mentions: bool,
     },
 
     /// Interactive fuzzy search for notes

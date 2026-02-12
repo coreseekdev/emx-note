@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io;
+use emx_note::util;
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -53,8 +54,8 @@ pub fn run(
     let updated = update_links(&capsa_ref.path, &current, &new)?;
 
     println!("Moved: {} -> {}", current, new);
-    println!("  from: {}", source_path.display());
-    println!("  to: {}", dest_path.display());
+    println!("  from: {}", util::display_path(&source_path));
+    println!("  to: {}", util::display_path(&dest_path));
     if updated > 0 {
         println!("  Updated {} link(s) in other notes", updated);
     }

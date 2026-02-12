@@ -9,19 +9,13 @@ fn main() -> std::io::Result<()> {
     match cli.command {
         Command::Daily { title } => cmd::daily::run(&ctx, cli.caps.as_deref(), title),
         Command::Note { title, source } => cmd::note::run(&ctx, cli.caps.as_deref(), title, source),
-        Command::Create { note_name, content, overwrite } => {
-            cmd::create::run(&ctx, cli.caps.as_deref(), note_name, content, overwrite)
-        }
         Command::Move { current, new } => {
             cmd::r#move::run(&ctx, cli.caps.as_deref(), current, new)
         }
-        Command::Copy { source, dest, overwrite } => {
-            cmd::copy::run(&ctx, cli.caps.as_deref(), source, dest, overwrite)
-        }
         Command::Delete { note_path } => cmd::delete::run(&ctx, cli.caps.as_deref(), note_path),
-        Command::List { path } => cmd::list::run(&ctx, cli.caps.as_deref(), path),
-        Command::Print { note_name, mentions } => {
-            cmd::print::run(&ctx, cli.caps.as_deref(), note_name, mentions)
+        Command::List { filter } => cmd::list::run(&ctx, cli.caps.as_deref(), filter),
+        Command::Print { note_name } => {
+            cmd::print::run(&ctx, cli.caps.as_deref(), note_name)
         }
         Command::Search => cmd::search::run(&ctx, cli.caps.as_deref()),
         Command::SearchContent { search_term } => {
@@ -44,9 +38,7 @@ fn main() -> std::io::Result<()> {
 mod cmd {
     pub mod daily;
     pub mod note;
-    pub mod create;
     pub mod r#move;
-    pub mod copy;
     pub mod delete;
     pub mod list;
     pub mod print;

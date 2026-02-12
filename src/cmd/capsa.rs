@@ -1,6 +1,7 @@
 use std::io;
 use std::fs;
 use emx_note::ResolveContext;
+use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapsaCommand) -> io::Result<()> {
     match cmd {
@@ -21,7 +22,7 @@ pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapsaCommand) -> io::R
         emx_note::CapsaCommand::Info { name } => {
             println!("Capsa info: {}", name);
             if let Some(cap_ref) = ctx.resolve_capsa(&name) {
-                println!("  Path: {}", cap_ref.path.display());
+                println!("  Path: {}", util::display_path(&cap_ref.path));
                 println!("  Is link: {}", cap_ref.is_link);
                 println!("  Exists: true");
             } else {
@@ -60,11 +61,10 @@ fn create_capsa(ctx: &ResolveContext, name: &str) -> io::Result<()> {
     fs::create_dir_all(&capsa_path)?;
 
     // Create default subdirectories
-    fs::create_dir_all(capsa_path.join("daily"))?;
-    fs::create_dir_all(capsa_path.join(".template"))?;
+    fs::create_dir_all(capsa_path.join("#daily"))?;
 
     println!("Created capsa: {}", name);
-    println!("  Path: {}", capsa_path.display());
+    println!("  Path: {}", util::display_path(&capsa_path));
 
     Ok(())
 }

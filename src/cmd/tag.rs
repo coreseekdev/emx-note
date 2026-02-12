@@ -1,6 +1,6 @@
 //! Tag/Label management module
 //!
-//! Tags are stored as #xxxx.md files in the capsa root.
+//! Tags are stored as #xxxx.md files in the note/ directory.
 //! Notes added to tags are grouped by date.
 
 use std::fs::{self, OpenOptions};
@@ -8,6 +8,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use chrono::Local;
 use emx_note::TagCommand;
+use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, cmd: TagCommand) -> io::Result<()> {
     match cmd {
@@ -18,7 +19,7 @@ pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, cmd: TagCommand) 
     }
 }
 
-/// Get the tag file path
+/// Get the tag file path (in capsa root directory)
 fn tag_path(capsa_path: &PathBuf, tag: &str) -> PathBuf {
     // Normalize tag name (remove # prefix if present)
     let tag_name = tag.trim_start_matches('#');
@@ -75,7 +76,7 @@ fn add_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, note: 
 
     let tag_name = tag.trim_start_matches('#');
     println!("Added '{}' to #{}", note, tag_name);
-    println!("  in: {}", tag_file.display());
+    println!("  in: {}", util::display_path(&tag_file));
 
     Ok(())
 }
@@ -183,10 +184,11 @@ fn list_tags(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: Option<&st
             }
         }
     } else {
-        // List all tags
+        // List all tags in note/ directory
         let mut tags: Vec<String> = Vec::new();
+        let note_dir = capsa_ref.path.join("note");
 
-        if let Ok(entries) = fs::read_dir(&capsa_ref.path) {
+        if let Ok(entries) = fs::read_dir(&note_dir) {
             for entry in entries.filter_map(|e| e.ok()) {
                 let name = entry.file_name();
                 let name_str = name.to_string_lossy();

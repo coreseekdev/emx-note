@@ -1,0 +1,49 @@
+-- content1.txt --
+Test content for first note
+
+-- content2.txt --
+Test content for second note
+
+-- special.txt --
+Special task content
+
+# Test advanced note resolution (date/title format and path normalization)
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+
+# Create a capsa
+exec emx-note --home $WORK/.emx-notes -g capsa create test-advanced
+stdout 'Created capsa: test-advanced'
+
+# Create daily notes with specific titles
+exec emx-note --home $WORK/.emx-notes -c test-advanced daily "Alpha Note" < $WORK/content1.txt
+stdout '#daily/'
+exec emx-note --home $WORK/.emx-notes -c test-advanced daily "Beta Note" < $WORK/content2.txt
+stdout '#daily/'
+exec emx-note --home $WORK/.emx-notes -c test-advanced daily "Special Task" < $WORK/special.txt
+stdout '#daily/'
+
+# Get today's date for date-prefixed searches
+exec sh -c "date +%Y%m%d" > $WORK/today.txt
+
+# Test 1: Title prefix match in daily notes
+exec emx-note --home $WORK/.emx-notes -c test-advanced print alpha
+stdout 'Alpha Note'
+
+# Test 2: Another title prefix match
+exec emx-note --home $WORK/.emx-notes -c test-advanced print special
+stdout 'Special Task'
+
+# Test 3: Case-insensitive slug matching (title is lowercased for filename)
+# "ALPHA" should match "alpha-note"
+exec emx-note --home $WORK/.emx-notes -c test-advanced print ALPHA
+stdout 'Alpha Note'
+
+# Test 4: Partial word matching
+# "spec" should match "special-task"
+exec emx-note --home $WORK/.emx-notes -c test-advanced print spec
+stdout 'Special Task'
+
+# Test 5: Non-existent prefix
+! exec emx-note --home $WORK/.emx-notes -c test-advanced print gamma
+stderr 'NotFound'

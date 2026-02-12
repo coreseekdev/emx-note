@@ -3,7 +3,7 @@
 use std::fs;
 use std::io::{self, Read};
 use chrono::Local;
-use sha2::{Sha256, Digest};
+use emx_note::util;
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -17,7 +17,7 @@ pub fn run(
 
     // Generate filename
     let filename = if let Some(t) = title {
-        format!("{}.md", slugify(&t))
+        format!("{}.md", util::slugify(&t))
     } else {
         format!("{}.md", timestamp)
     };
@@ -25,7 +25,7 @@ pub fn run(
     // Determine the directory path
     let note_dir = if let Some(ref src) = source {
         // With source: note/{hash}/
-        let hash = abbreviate_hash(&hash_source(src));
+        let hash = util::abbreviate_hash(&util::hash_source(src));
         capsa_ref.path.join("note").join(&hash)
     } else {
         // Without source: note/
@@ -49,7 +49,7 @@ pub fn run(
     }
 
     // Output full path for shell pipeline compatibility
-    println!("{}", note_path.display());
+    println!("{}", util::display_path(&note_path));
 
     Ok(())
 }
@@ -63,29 +63,4 @@ fn read_stdin_content() -> io::Result<String> {
         Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(String::new()),
         Err(e) => Err(e),
     }
-}
-
-/// Convert title to slug (lowercase, replace spaces with hyphens)
-fn slugify(title: &str) -> String {
-    title
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .trim_matches('-')
-        .to_string()
-}
-
-/// Hash source string using SHA256
-fn hash_source(source: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(source.as_bytes());
-    let hash = hasher.finalize();
-    format!("{:x}", hash)
-}
-
-/// Abbreviate hash to git-style length (12 characters for SHA256)
-/// Git uses 7 characters for SHA1 (160 bits), for SHA256 we use 12
-fn abbreviate_hash(full_hash: &str) -> String {
-    full_hash.chars().take(12).collect()
 }

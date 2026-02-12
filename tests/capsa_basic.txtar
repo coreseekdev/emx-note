@@ -3,34 +3,34 @@ env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
 # List empty capsae
-exec emx-note --home $WORK/.emx-notes -g capssa list
+exec emx-note --home $WORK/.emx-notes -g capsa list
 stdout 'none'
 
 # Create a capsa
-exec emx-note --home $WORK/.emx-notes -g capssa create test-capsa
+exec emx-note --home $WORK/.emx-notes -g capsa create test-capsa
 stdout 'Created capsa: test-capsa'
 
 # List should now show the capsa
-exec emx-note --home $WORK/.emx-notes -g capssa list
+exec emx-note --home $WORK/.emx-notes -g capsa list
 stdout 'test-capsa'
 
 # Check capsa info
-exec emx-note --home $WORK/.emx-notes -g capssa info -n test-capsa
+exec emx-note --home $WORK/.emx-notes -g capsa info -n test-capsa
 stdout 'test-capsa'
 stdout 'Exists: true'
 
 # Cannot create duplicate
-! exec emx-note --home $WORK/.emx-notes -g capssa create test-capsa
+! exec emx-note --home $WORK/.emx-notes -g capsa create test-capsa
 stderr 'already exists'
 
 # Cannot create with . prefix
-! exec emx-note --home $WORK/.emx-notes -g capssa create .hidden
+! exec emx-note --home $WORK/.emx-notes -g capsa create .hidden
 stderr 'reserved for system'
 
 # Delete the capsa
-exec emx-note --home $WORK/.emx-notes -g capssa delete test-capsa
+exec emx-note --home $WORK/.emx-notes -g capsa delete test-capsa
 stdout 'Deleted capsa'
 
 # List should be empty again
-exec emx-note --home $WORK/.emx-notes -g capssa list
+exec emx-note --home $WORK/.emx-notes -g capsa list
 stdout 'none'

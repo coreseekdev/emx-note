@@ -51,8 +51,12 @@ pub fn run(
             .to_string_lossy()
             .replace('\\', "/");
 
-        // Skip files in special directories
-        if relative.starts_with(".template/") || relative.starts_with("daily/") {
+        // Skip files in special directories and root tag files
+        if relative.starts_with(".template/") || relative.starts_with("#daily/") || relative.starts_with("note/") {
+            continue;
+        }
+        // Skip root directory tag files (#*.md)
+        if !relative.contains('/') && relative.starts_with('#') {
             continue;
         }
 

@@ -1,0 +1,47 @@
+-- content1.txt --
+First note content
+
+-- content2.txt --
+Second note content
+
+-- special.txt --
+This is a special task note
+
+# Test note resolution rules
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+
+# Create a capsa
+exec emx-note --home $WORK/.emx-notes -g capsa create test-resolve
+stdout 'Created capsa: test-resolve'
+
+# Create regular notes
+exec emx-note --home $WORK/.emx-notes -c test-resolve note alpha-note < $WORK/content1.txt
+exec emx-note --home $WORK/.emx-notes -c test-resolve note beta-note < $WORK/content2.txt
+
+# Create daily notes with content and titles
+exec emx-note --home $WORK/.emx-notes -c test-resolve daily "Morning Meeting" < $WORK/content1.txt
+stdout '#daily/'
+exec emx-note --home $WORK/.emx-notes -c test-resolve daily "Special Task" < $WORK/special.txt
+stdout '#daily/'
+
+# Test 1: Resolve regular note by exact name
+exec emx-note --home $WORK/.emx-notes -c test-resolve print alpha-note
+stdout 'First note content'
+
+# Test 2: Resolve regular note by prefix
+exec emx-note --home $WORK/.emx-notes -c test-resolve print beta
+stdout 'Second note content'
+
+# Test 3: Print daily note by title prefix
+# "special" should match "*-special-task.md" in today's daily directory
+exec emx-note --home $WORK/.emx-notes -c test-resolve print special
+stdout 'special task'
+
+# Test 4: Print daily note by another title prefix
+exec emx-note --home $WORK/.emx-notes -c test-resolve print morning
+stdout 'Morning Meeting'
+
+# Test 5: Non-existent note
+! exec emx-note --home $WORK/.emx-notes -c test-resolve print nonexistent
+stderr 'NotFound'

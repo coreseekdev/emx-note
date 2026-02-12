@@ -2,6 +2,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use sha2::{Sha256, Digest};
 
 /// Validate and resolve a note path, ensuring it stays within the capsa directory
 /// Returns an error if the path attempts to escape the base directory
@@ -129,6 +130,26 @@ pub fn slugify(title: &str) -> String {
     }
 
     result.trim_matches('-').to_string()
+}
+
+/// Hash source string using SHA256
+pub fn hash_source(source: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(source.as_bytes());
+    let hash = hasher.finalize();
+    format!("{:x}", hash)
+}
+
+/// Abbreviate hash to git-style length (12 characters for SHA256)
+/// Git uses 7 characters for SHA1 (160 bits), for SHA256 we use 12
+pub fn abbreviate_hash(full_hash: &str) -> String {
+    full_hash.chars().take(12).collect()
+}
+
+/// Display a path with forward slashes (cross-platform standard)
+/// Converts Windows backslashes to forward slashes for consistent output
+pub fn display_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 #[cfg(test)]

@@ -3,21 +3,23 @@ env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
 # Create a capsa first
-exec emx-note --home $WORK/.emx-notes -g capssa create test-daily
+exec emx-note --home $WORK/.emx-notes -g capsa create test-daily
 stdout 'Created capsa: test-daily'
 
-# Create daily note with title
-exec emx-note --home $WORK/.emx-notes -c test-daily daily Meeting-notes
-stdout 'Created daily note'
+# Create daily note with title (double quoted for Windows compatibility)
+exec emx-note --home $WORK/.emx-notes -c test-daily daily "Meeting Notes"
+stdout '#daily/'
 stdout 'meeting-notes'
 
 # Create daily note without title
 exec emx-note --home $WORK/.emx-notes -c test-daily daily
-stdout 'Created daily note'
+stdout '#daily/'
 
-# Verify daily directory exists
-exists $WORK/.emx-notes/test-daily/daily
+# Verify #daily directory exists
+exists $WORK/.emx-notes/test-daily/#daily
 
-# Verify daily link file exists (YYYYMMDD.md pattern)
-exec ls $WORK/.emx-notes/test-daily/daily/*.md
-stdout '.md'
+# Verify note/ directory exists
+exists $WORK/.emx-notes/test-daily/note
+
+# Verify daily link file exists (note/#daily.md)
+exists $WORK/.emx-notes/test-daily/note/#daily.md

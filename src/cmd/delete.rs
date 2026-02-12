@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io;
+use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, note_path: String) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
@@ -34,7 +35,7 @@ pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, note_path: String
     fs::remove_file(&full_path)?;
 
     println!("Deleted note: {}", note_path);
-    println!("  from: {}", full_path.display());
+    println!("  from: {}", util::display_path(&full_path));
 
     Ok(())
 }

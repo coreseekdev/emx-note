@@ -1,25 +1,30 @@
+-- tmp-note1.txt --
+Content of note1
+
+-- tmp-note2.txt --
+Content of note2
+
+-- tmp-linked.txt --
+See [[note1]] for reference
+
 # Test note commands (list, print, delete, move)
 env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
 # Create a capsa first
-exec emx-note --home $WORK/.emx-notes -g capssa create test-notes
+exec emx-note --home $WORK/.emx-notes -g capsa create test-notes
 stdout 'Created capsa: test-notes'
 
-# Create some notes
-exec emx-note --home $WORK/.emx-notes -c test-notes create note1.md
-stdout 'Created note'
-exec emx-note --home $WORK/.emx-notes -c test-notes create --content 'Content of note2' note2.md
-stdout 'Created note'
-exec emx-note --home $WORK/.emx-notes -c test-notes create --content 'See [[note1]] for reference' linked.md
-stdout 'Created note'
+# Create some notes using note command with stdin from files
+exec emx-note --home $WORK/.emx-notes -c test-notes note note1 < $WORK/tmp-note1.txt
+exec emx-note --home $WORK/.emx-notes -c test-notes note note2 < $WORK/tmp-note2.txt
+exec emx-note --home $WORK/.emx-notes -c test-notes note linked < $WORK/tmp-linked.txt
 
-# Test list command
+# Test list command (lists note/ top-level files)
 exec emx-note --home $WORK/.emx-notes -c test-notes list
 stdout 'note1.md'
 stdout 'note2.md'
 stdout 'linked.md'
-stdout 'daily/'
 
 # Test print command
 exec emx-note --home $WORK/.emx-notes -c test-notes print note2
@@ -28,23 +33,23 @@ stdout 'Content of note2'
 # Test print with backlinks
 exec emx-note --home $WORK/.emx-notes -c test-notes print --mentions note1
 stdout 'Backlinks'
-stdout 'linked.md'
+stdout 'linked'
 
 # Test move command
 exec emx-note --home $WORK/.emx-notes -c test-notes move note1.md renamed-note.md
 stdout 'Moved'
 
 # Verify move worked
-! exists $WORK/.emx-notes/test-notes/note1.md
-exists $WORK/.emx-notes/test-notes/renamed-note.md
+! exists $WORK/.emx-notes/test-notes/note/note1.md
+exists $WORK/.emx-notes/test-notes/note/renamed-note.md
 
 # Verify links were updated
 exec emx-note --home $WORK/.emx-notes -c test-notes print linked
 stdout 'renamed-note'
 
-# Test delete command
+# Test delete command (soft delete - renames to .hidden)
 exec emx-note --home $WORK/.emx-notes -c test-notes delete note2.md
-stdout 'Deleted'
 
-# Verify delete worked
-! exists $WORK/.emx-notes/test-notes/note2.md
+# Verify delete worked (file is renamed to .note2.md)
+! exists $WORK/.emx-notes/test-notes/note/note2.md
+exists $WORK/.emx-notes/test-notes/note/.note2.md
