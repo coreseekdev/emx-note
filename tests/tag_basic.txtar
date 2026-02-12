@@ -1,38 +1,51 @@
 -- tmp-test.txt --
 # Test Note
 
-# Test tag/label commands
+# Test tag commands
 env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
-# Create a capsa first
+# Create a capsa first (outputs path)
 exec emx-note --home $WORK/.emx-notes -g capsa create test-tag
-stdout 'Created capsa: test-tag'
+stdout '.emx-notes/test-tag'
 
 # Create a test note using note command
 exec emx-note --home $WORK/.emx-notes -c test-tag note test-note < $WORK/tmp-test.txt
 
-# Add note to tag
-exec emx-note --home $WORK/.emx-notes -c test-tag tag add important test-note
-stdout 'test-note'
-stdout '#important'
-
-# List tags
-exec emx-note --home $WORK/.emx-notes -c test-tag tag list
-stdout 'important'
-
-# List notes in tag
-exec emx-note --home $WORK/.emx-notes -c test-tag tag list important
-stdout 'Test Note'
-
-# Verify tag file exists using ls (in root directory now, not note/)
-exec ls $WORK/.emx-notes/test-tag/
+# Add note to single tag (new format: note_ref first, then tags)
+exec emx-note --home $WORK/.emx-notes -c test-tag tag add test-note important
 stdout '#important.md'
 
-# Remove note from tag
-exec emx-note --home $WORK/.emx-notes -c test-tag tag remove important test-note
-stdout 'Removed'
+# Add multiple tags at once
+exec emx-note --home $WORK/.emx-notes -c test-tag tag add test-note rust cli
+stdout '#rust.md'
+stdout '#cli.md'
 
-# Verify tag file is deleted - list should not contain #important.md
+# List notes with tag filter (using list command, not tag list)
+exec emx-note --home $WORK/.emx-notes -c test-tag list "#important"
+stdout 'Test Note'
+
+# Verify tag files exist
+exec ls $WORK/.emx-notes/test-tag/
+stdout '#important.md'
+stdout '#rust.md'
+stdout '#cli.md'
+
+# Remove single tag
+exec emx-note --home $WORK/.emx-notes -c test-tag tag remove test-note important
+stdout '#important.md'
+
+# Verify tag file is deleted
 exec ls $WORK/.emx-notes/test-tag/
 ! stdout '#important.md'
+stdout '#rust.md'
+
+# Remove multiple tags at once
+exec emx-note --home $WORK/.emx-notes -c test-tag tag remove test-note rust cli
+stdout '#rust.md'
+stdout '#cli.md'
+
+# Verify all tag files are deleted
+exec ls $WORK/.emx-notes/test-tag/
+! stdout '#rust.md'
+! stdout '#cli.md'

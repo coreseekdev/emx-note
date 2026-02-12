@@ -2,9 +2,9 @@
 env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
-# Create a capsa first
+# Create a capsa first (outputs path)
 exec emx-note --home $WORK/.emx-notes -g capsa create test-daily
-stdout 'Created capsa: test-daily'
+stdout '.emx-notes/test-daily'
 
 # Create daily note with title (double quoted for Windows compatibility)
 exec emx-note --home $WORK/.emx-notes -c test-daily daily "Meeting Notes"

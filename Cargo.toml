@@ -9,8 +9,11 @@ repository = "https://github.com/coreseekdev/emx-note"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 dirs = "6"
+dunce = "1"
 once_cell = "1"
 pulldown-cmark = "0.13"
+serde = "1"
+serde_yaml = "0.9"
 sha2 = "0.10"
 
 [dev-dependencies]

@@ -6,18 +6,17 @@ env EMX_AGENT_NAME=
 exec emx-note --home $WORK/.emx-notes -g capsa list
 stdout 'none'
 
-# Create a capsa
+# Create a capsa (outputs path)
 exec emx-note --home $WORK/.emx-notes -g capsa create test-capsa
-stdout 'Created capsa: test-capsa'
+stdout '.emx-notes/test-capsa'
 
 # List should now show the capsa
 exec emx-note --home $WORK/.emx-notes -g capsa list
 stdout 'test-capsa'
 
-# Check capsa info
-exec emx-note --home $WORK/.emx-notes -g capsa info -n test-capsa
+# Resolve capsa path
+exec emx-note --home $WORK/.emx-notes -g capsa resolve test-capsa
 stdout 'test-capsa'
-stdout 'Exists: true'
 
 # Cannot create duplicate
 ! exec emx-note --home $WORK/.emx-notes -g capsa create test-capsa
@@ -27,10 +26,11 @@ stderr 'already exists'
 ! exec emx-note --home $WORK/.emx-notes -g capsa create .hidden
 stderr 'reserved for system'
 
-# Delete the capsa
-exec emx-note --home $WORK/.emx-notes -g capsa delete test-capsa
-stdout 'Deleted capsa'
+# Create a link capsa (outputs link file path)
+exec mkdir $WORK/external-dir
+exec emx-note --home $WORK/.emx-notes -g capsa create external-link $WORK/external-dir
+stdout '.emx-notes/external-link'
 
-# List should be empty again
-exec emx-note --home $WORK/.emx-notes -g capsa list
-stdout 'none'
+# Resolve link capsa (outputs target path)
+exec emx-note --home $WORK/.emx-notes -g capsa resolve external-link
+stdout 'external-dir'

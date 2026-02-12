@@ -15,7 +15,7 @@ cargo install --path .
 emx-note capsa create my-notes
 
 # Set it as default
-emx-note set-default my-notes
+emx-note default my-notes
 
 # Create a permanent note
 echo "# Hello World" | emx-note note "hello-world"
@@ -125,28 +125,39 @@ echo "Book summary" | emx-note note "book-xyz" --source "book:xyz"
 # → note/{hash}/.source (contains "book:xyz")
 ```
 
-**Source Hashing:**
-- Source string is hashed using SHA256
-- First 12 characters of hash used as directory name (git-style abbreviation)
-- Original source stored in `.source` file
-
 ---
 
-### `delete` - Delete a Note
+### `resolve` - Resolve Note Reference
 
-Delete a note from the capsa.
+Resolve a note reference to its full file path.
 
 ```bash
-emx-note delete <note_reference>
+emx-note resolve <note_reference>
 ```
 
-**Note Reference:** Uses the same resolution rules as `print` (see above).
+**Aliases:** `rv`
+
+**Output:** Full path to the note file (normalized with forward slashes).
+
+**Exit Codes:**
+- `0` - Note found, path printed to stdout
+- `1` - Note not found or ambiguous, error message printed to stderr
+
+**Note Reference:** Uses the same resolution rules as `print` (see below).
 
 **Examples:**
 ```bash
-emx-note delete old-note
-emx-note delete 20260212/22     # Delete by date + time prefix
-emx-note delete some-task       # Delete by title prefix
+# Get full path of a note
+emx-note resolve hello-world
+# Output: C:/Users/user/.emx-notes/default/note/hello-world.md
+
+# Resolve by time prefix
+emx-note resolve 22
+# Output: C:/Users/.../#daily/20260212/222714-task.md
+
+# Resolve by date + prefix
+emx-note resolve 20260212/some
+# Output: C:/Users/.../#daily/20260212/222714-some-task.md
 ```
 
 ---
@@ -166,7 +177,7 @@ emx-note list [filter]
 | Filter | Description |
 |--------|-------------|
 | (none) | List top-level `.md` files in `note/` (excludes hash subdirectories) |
-| `#tag` | Show contents of tag file `note/#tag.md` |
+| `#tag` | Show contents of tag file `#tag.md` |
 | `#daily` | List date subdirectories in `#daily/` (dates only) |
 | source string | Hash the source, then list notes in `note/{hash}/` |
 | date (YYYYMMDD) | List notes in `#daily/YYYYMMDD/` |
@@ -214,8 +225,6 @@ Notes are resolved using flexible prefix matching. The resolution follows these 
 | `title` | Title prefix search (today's daily, then note/, then index files) | `some` → `some-task.md` |
 | `YYYYMMDDHHmmSS` | Full timestamp (14 digits) | `20260212222714` → `222714-task.md` |
 
-**Path Separator:** Both `/` and `\` are supported and normalized to `/`.
-
 **Examples:**
 ```bash
 # Print by exact name
@@ -223,91 +232,51 @@ emx-note print hello-world
 
 # Print by time prefix (today's daily notes)
 emx-note print 22              # Matches 222714-*.md
-emx-note print 2227            # Matches 222714-*.md
 
 # Print by date and title prefix
 emx-note print 20260212/some   # Matches *some*.md in #daily/20260212/
-emx-note print 20260212\22     # Same as above (Windows-style)
-
-# Print by hybrid timestamp + title prefix
-emx-note print 20260212/222714-s  # Matches 222714-s*.md
 ```
 
 ---
 
-### `search` - Fuzzy Search
+### `meta` - Manage Metadata
 
-Interactive fuzzy search for notes using terminal selection UI.
-
-```bash
-emx-note search
-```
-
-**Aliases:** `s`
-
----
-
-### `search-content` - Search Note Content
-
-Search for text within note contents.
+Manage YAML frontmatter (metadata) in notes.
 
 ```bash
-emx-note search-content <search_term>
+emx-note meta <note_reference> [key] [value...] [--delete]
 ```
 
-**Aliases:** `sc`
+**Aliases:** `m`
 
-**Example:**
-```bash
-emx-note search-content "Zettelkasten"
-emx-note search-content "TODO"
-```
+**Modes:**
 
----
+| Mode | Command | Description |
+|------|---------|-------------|
+| List all | `emx-note meta note` | Print all frontmatter |
+| Get value | `emx-note meta note key` | Print value of key |
+| Set string | `emx-note meta note key value` | Set key to string value |
+| Set array | `emx-note meta note key v1 v2 v3` | Set key to array `[v1, v2, v3]` |
+| Delete key | `emx-note meta note key --delete` | Delete key |
 
-### `frontmatter` - Manage Frontmatter
-
-Manage YAML frontmatter in notes.
-
-```bash
-emx-note frontmatter <note_reference> <action>
-```
-
-**Note Reference:** Uses the same resolution rules as `print` (see above).
-
-**Aliases:** `fm`
-
-**Actions:**
-
-#### `print` - Print Frontmatter
-```bash
-emx-note frontmatter <note_name> print
-```
-
-#### `edit` - Edit Key-Value
-```bash
-emx-note frontmatter <note_name> edit --key <key> --value <value>
-```
-Supports nested keys with dots (e.g., `meta.tags`).
-
-#### `delete` - Delete Key
-```bash
-emx-note frontmatter <note_name> delete --key <key>
-```
+**Nested Keys:** Supports dot notation for nested keys (e.g., `meta.status`, `tags.project`).
 
 **Examples:**
 ```bash
-# Print frontmatter
-emx-note fm note print
+# List all metadata
+emx-note meta my-note
 
-# Set a value
-emx-note fm note edit --key tags --value " rust, cli"
+# Get a value
+emx-note meta my-note tags
 
-# Edit nested key
-emx-note fm note edit --key "meta.status" --value "draft"
+# Set a string value
+emx-note meta my-note status "draft"
+
+# Set an array value
+emx-note meta my-note tags rust cli zettelkasten
 
 # Delete a key
-emx-note fm note delete --key "meta.status"
+emx-note meta my-note status --delete
 ```
 
 ---
@@ -325,71 +294,137 @@ emx-note capsa <command>
 emx-note capsa list
 ```
 
-#### `capsa create` - Create New Collection
+#### `capsa create` - Create New Collection or Link
 ```bash
-emx-note capsa create <name>
+emx-note capsa create <name> [path]
 ```
+
+**Output:** Path to the created capsa (or link file).
+
+- Without `path`: Creates a regular capsa directory
+- With `path`: Creates a link capsa pointing to an external directory
 
 **Restrictions:** Names cannot start with `.` (reserved for system use).
 
-#### `capsa info` - Show Collection Info
+**Examples:**
 ```bash
-emx-note capsa info [--name <name>]
+# Create a regular capsa
+emx-note capsa create my-notes
+# Output: C:/Users/user/.emx-notes/my-notes
+
+# Create a link capsa to external directory
+emx-note capsa create project-notes /path/to/project/docs
+# Output: C:/Users/user/.emx-notes/project-notes
 ```
 
-Default name is `.default` (or agent name when using agent mode).
-
-#### `capsa delete` - Delete Collection
+#### `capsa resolve` - Resolve Collection Path
 ```bash
-emx-note capsa delete <name>
+emx-note capsa resolve <name>
 ```
 
-**Restrictions:**
-- Cannot delete `.default` (system default)
-- Cannot delete linked capsae (delete the link file instead)
-
----
-
-### `set-default` - Set Default Capsa
-
-Set the default capsa for future operations.
-
-```bash
-emx-note set-default <caps>
-```
+Resolves a capsa to its actual file system path. Useful for link capsae to see where they point.
 
 **Example:**
 ```bash
-emx-note set-default my-notes
+emx-note capsa resolve project-notes
+# Output: /path/to/project/docs
 ```
-
-**Note:** Default capsa resolution priority:
-1. `$EMX_NOTE_DEFAULT` environment variable
-2. `$EMX_AGENT_NAME` (when set, agent's personal default)
-3. Hardcoded `.default` directory
 
 ---
 
-### `print-default` - Show Default Capsa Info
+### `default` - Get/Set Default Capsa
 
-Print information about the current default capsa.
+Get or set the default capsa for future operations.
 
 ```bash
-emx-note print-default [OPTIONS]
-```
+# Get current default (prints path)
+emx-note default
 
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--path-only` | Output only the path |
+# Set new default
+emx-note default my-notes
+```
 
 **Examples:**
 ```bash
-# Show full info
-emx-note print-default
+# Show current default path
+emx-note default
+# Output: /home/user/.emx-notes/my-notes
 
-# Show path only (useful for scripts)
-emx-note print-default --path-only
+# Set new default
+emx-note default work-projects
+# Output: Default capsa set to 'work-projects'
+```
+
+---
+
+### `tag` - Manage Tags
+
+Manage tags (stored as `#tagname.md` files in the capsa root directory).
+
+```bash
+emx-note tag <command>
+```
+
+#### `tag add` - Add Tags to Note
+```bash
+emx-note tag add [--force] <note_ref> <tag1> [tag2]...
+```
+
+Adds one or more tags to a note. The note reference uses the same resolution rules as `print`/`resolve`.
+
+**Options:**
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--force` | `-f` | Apply to all matching notes if reference is ambiguous |
+
+**Output:** Path to each tag file that was modified.
+
+**Examples:**
+```bash
+# Add single tag
+emx-note tag add my-note rust
+
+# Add multiple tags at once
+emx-note tag add my-note rust cli tool
+
+# Force add to all matching notes (if ambiguous)
+emx-note tag add -f 22 important
+```
+
+#### `tag remove` - Remove Tags from Note
+```bash
+emx-note tag remove [--force] <note_ref> <tag1> [tag2]...
+```
+
+Removes one or more tags from a note. Silently succeeds if note wasn't in the tag.
+
+**Options:**
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--force` | `-f` | Apply to all matching notes if reference is ambiguous |
+
+**Examples:**
+```bash
+# Remove single tag
+emx-note tag remove my-note rust
+
+# Remove multiple tags at once
+emx-note tag remove my-note rust cli tool
+```
+
+**Listing Tags:** Use `emx-note list "#tagname"` to view notes in a tag.
+
+**Tag File Format:**
+Tags are stored as `#tagname.md` in the capsa root directory:
+```markdown
+# tagname
+
+## 2025-02-12
+- [Note Title](path/to/note.md)
+- [Another Note](docs/another.md)
+
+## 2025-02-10
+- [Old Note](old.md)
 ```
 
 ---
@@ -410,121 +445,13 @@ emx-note gc [OPTIONS]
 | `--force` | `-f` | Skip confirmation prompt |
 | `--verbose` | `-v` | Show verbose output |
 
-**Orphaned Notes Criteria:**
-1. Older than N days (default: 7)
-2. No incoming links from other notes in the capsa
-
 **Examples:**
 ```bash
 # Dry-run: list orphaned notes older than 7 days
 emx-note gc
 
-# List orphaned notes older than 30 days
-emx-note gc --days 30
-
-# Actually delete orphaned notes (with confirmation)
+# Actually delete orphaned notes
 emx-note gc --execute
-
-# Delete without confirmation
-emx-note gc --execute --force
-
-# Verbose mode
-emx-note gc --verbose
-```
-
-**Skipped Directories:**
-- `#daily/` - Daily notes (temporary)
-- `note/` - Permanent notes (already curated)
-
----
-
-### `tag` / `label` - Manage Tags
-
-Manage tags (stored as `#tagname.md` files in the capsa root directory).
-
-```bash
-emx-note tag <command>
-```
-
-**Aliases:** `label` (hidden command, same functionality)
-
-#### `tag add` - Add Note to Tag
-```bash
-emx-note tag add <tag> <note>
-```
-
-Adds a note to a tag. Tags are stored with date-grouped links.
-
-**Example:**
-```bash
-emx-note tag add rust README.md
-emx-note tag add todo docs/task-list
-```
-
-#### `tag remove` - Remove Note from Tag
-```bash
-emx-note tag remove <tag> <note>
-```
-
-**Example:**
-```bash
-emx-note tag remove rust README.md
-```
-
-#### `tag list` - List Tags or Notes in Tag
-```bash
-emx-note tag list [tag]
-```
-
-**Examples:**
-```bash
-# List all tags
-emx-note tag list
-
-# List notes in a specific tag
-emx-note tag list rust
-
-# Alternative using list command
-emx-note list "#rust"
-```
-
-#### `tag delete` - Delete Tag
-```bash
-emx-note tag delete <tag>
-```
-
-**Example:**
-```bash
-emx-note tag delete old-tag
-```
-
-**Tag File Format:**
-Tags are stored as `#tagname.md` in the capsa root directory:
-```markdown
-# tagname
-
-## 2025-02-12
-- [Note Title](path/to/note.md)
-- [Another Note](docs/another.md)
-
-## 2025-02-10
-- [Old Note](old.md)
-```
-
----
-
-### `move` - Move/Rename Notes
-
-Move or rename notes within the capsa, updating any links that reference them.
-
-```bash
-emx-note move <source> <dest>
-```
-
-**Example:**
-```bash
-emx-note move old-note.md new-note.md
-emx-note move draft.md ideas/refined-draft.md
 ```
 
 ---
@@ -540,9 +467,6 @@ export EMX_AGENT_NAME="agent1"
 
 # Creates capsa "agent1-shared-notes"
 emx-note capsa create shared-notes
-
-# Access agent1's personal default (resolves to "agent1")
-emx-note daily
 ```
 
 Use `-g/--global` to bypass agent prefixing:
@@ -554,26 +478,16 @@ emx-note --global capsa create shared-notes
 
 ### Link Files
 
-Capsae can link to external directories using INI-style link files:
+Capsae can link to external directories:
 
 ```bash
-# Create a link file
-cat > my-project << 'EOF'
-[link]
-target = /path/to/project/docs
-EOF
+# Create a link capsa pointing to external directory
+emx-note capsa create my-project /path/to/project/docs
 
-# Now my-project points to external directory
-emx-note --caps my-project list
+# Resolve to see actual path
+emx-note capsa resolve my-project
+# Output: /path/to/project/docs
 ```
-
-### Default Capsa Resolution
-
-The default capsa is resolved in this priority order:
-
-1. **`$EMX_NOTE_DEFAULT`** - Explicit environment variable
-2. **`$EMX_AGENT_NAME`** - Agent's personal default (when set and not global)
-3. **`.default`** - System default directory
 
 ### Directory Structure
 
@@ -594,20 +508,9 @@ capsa/
         └── .source            # Contains "book:xyz"
 ```
 
-### Zettelkasten Workflow
-
-The recommended workflow for Zettelkasten-style note management:
-
-1. **Capture** - Use `emx-note daily` for quick daily notes
-2. **Process** - Review daily notes and identify valuable content
-3. **Curate** - Move valuable notes to permanent locations using `emx-note note` with appropriate titles
-4. **Link** - Create connections between notes using markdown links
-5. **Tag** - Use tags for cross-cutting organization
-
 ---
 
 ## See Also
 
 - `emx-note --help` - CLI help
 - `emx-note <command> --help` - Command-specific help
-- Project README for development information

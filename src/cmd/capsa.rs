@@ -16,27 +16,17 @@ pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapsaCommand) -> io::R
                 }
             }
         }
-        emx_note::CapsaCommand::Create { name } => {
-            create_capsa(ctx, &name)?;
+        emx_note::CapsaCommand::Create { name, path } => {
+            create_capsa(ctx, &name, path)?;
         }
-        emx_note::CapsaCommand::Info { name } => {
-            println!("Capsa info: {}", name);
-            if let Some(cap_ref) = ctx.resolve_capsa(&name) {
-                println!("  Path: {}", util::display_path(&cap_ref.path));
-                println!("  Is link: {}", cap_ref.is_link);
-                println!("  Exists: true");
-            } else {
-                println!("  Exists: false");
-            }
-        }
-        emx_note::CapsaCommand::Delete { name } => {
-            delete_capsa(ctx, &name)?;
+        emx_note::CapsaCommand::Resolve { name } => {
+            resolve_capsa(ctx, &name)?;
         }
     }
     Ok(())
 }
 
-fn create_capsa(ctx: &ResolveContext, name: &str) -> io::Result<()> {
+fn create_capsa(ctx: &ResolveContext, name: &str, path: Option<String>) -> io::Result<()> {
     // Validate name doesn't start with '.' (reserved for system)
     if name.starts_with('.') {
         return Err(io::Error::new(
@@ -57,44 +47,47 @@ fn create_capsa(ctx: &ResolveContext, name: &str) -> io::Result<()> {
     let prefixed_name = ctx.apply_agent_prefix(name);
     let capsa_path = ctx.home.join(&prefixed_name);
 
-    // Create the directory
-    fs::create_dir_all(&capsa_path)?;
+    if let Some(target_path) = path {
+        // Create a link capsa
+        // Validate the target path exists
+        let target = std::path::Path::new(&target_path);
+        if !target.exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Target path does not exist: {}", target_path),
+            ));
+        }
 
-    // Create default subdirectories
-    fs::create_dir_all(capsa_path.join("#daily"))?;
+        // Convert to absolute path (dunce handles UNC prefix on Windows)
+        let absolute = dunce::canonicalize(target)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Invalid target path: {}", e)))?;
 
-    println!("Created capsa: {}", name);
-    println!("  Path: {}", util::display_path(&capsa_path));
+        // Create link file with INI-style content
+        let link_content = format!("[link]\ntarget = {}", util::display_path(&absolute));
+        fs::write(&capsa_path, link_content)?;
+
+        // Output the link file path
+        println!("{}", util::display_path(&capsa_path));
+    } else {
+        // Create a regular directory capsa
+        // Create the directory
+        fs::create_dir_all(&capsa_path)?;
+
+        // Create default subdirectories
+        fs::create_dir_all(capsa_path.join("#daily"))?;
+
+        // Output the created path
+        println!("{}", util::display_path(&capsa_path));
+    }
 
     Ok(())
 }
 
-fn delete_capsa(ctx: &ResolveContext, name: &str) -> io::Result<()> {
-    // Cannot delete system default
-    if name == emx_note::DEFAULT_CAPSA_NAME {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Cannot delete system default capsa",
-        ));
-    }
-
-    // Check if exists
+fn resolve_capsa(ctx: &ResolveContext, name: &str) -> io::Result<()> {
     let cap_ref = ctx.resolve_capsa(name).ok_or_else(|| {
         io::Error::new(io::ErrorKind::NotFound, format!("Capsa '{}' not found", name))
     })?;
 
-    // Cannot delete linked capsae
-    if cap_ref.is_link {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Cannot delete linked capsa (delete the link file instead)",
-        ));
-    }
-
-    // Delete the directory
-    fs::remove_dir_all(&cap_ref.path)?;
-
-    println!("Deleted capsa: {}", name);
-
+    println!("{}", util::display_path(&cap_ref.path));
     Ok(())
 }

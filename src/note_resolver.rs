@@ -114,6 +114,16 @@ fn validate_time(s: &str) -> bool {
     hour <= 23 && minute <= 59 && second <= 59
 }
 
+/// Parse and validate a time string (HHmmSS format)
+#[cfg(test)]
+fn parse_time_only(s: &str) -> Option<String> {
+    if validate_time(s) {
+        Some(s.to_string())
+    } else {
+        None
+    }
+}
+
 /// Resolve by timestamp (date + time)
 fn resolve_by_timestamp(
     capsa_path: &Path,

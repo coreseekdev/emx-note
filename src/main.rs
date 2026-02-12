@@ -9,45 +9,32 @@ fn main() -> std::io::Result<()> {
     match cli.command {
         Command::Daily { title } => cmd::daily::run(&ctx, cli.caps.as_deref(), title),
         Command::Note { title, source } => cmd::note::run(&ctx, cli.caps.as_deref(), title, source),
-        Command::Move { current, new } => {
-            cmd::r#move::run(&ctx, cli.caps.as_deref(), current, new)
-        }
-        Command::Delete { note_path } => cmd::delete::run(&ctx, cli.caps.as_deref(), note_path),
+        Command::Resolve { note_name } => cmd::note_resolve::run(&ctx, cli.caps.as_deref(), note_name),
         Command::List { filter } => cmd::list::run(&ctx, cli.caps.as_deref(), filter),
         Command::Print { note_name } => {
             cmd::print::run(&ctx, cli.caps.as_deref(), note_name)
         }
-        Command::Search => cmd::search::run(&ctx, cli.caps.as_deref()),
-        Command::SearchContent { search_term } => {
-            cmd::search_content::run(&ctx, cli.caps.as_deref(), search_term)
-        }
-        Command::FrontMatter { note_name, action } => {
-            cmd::frontmatter::run(&ctx, cli.caps.as_deref(), note_name, action)
+        Command::Meta { note_ref, key, value, delete } => {
+            cmd::meta::run(&ctx, cli.caps.as_deref(), note_ref, key, value, delete)
         }
         Command::Capsa(cmd) => cmd::capsa::run(&ctx, cmd),
-        Command::SetDefault { caps } => cmd::set_default::run(&ctx, caps),
-        Command::PrintDefault { path_only } => cmd::print_default::run(&ctx, path_only),
+        Command::Default { caps } => cmd::default::run(&ctx, caps),
         Command::Gc { days, execute, force, verbose } => {
             cmd::gc::run(&ctx, cli.caps.as_deref(), days, execute, force, verbose)
         }
         Command::Tag(tag_cmd) => cmd::tag::run(&ctx, cli.caps.as_deref(), tag_cmd),
-        Command::Label(tag_cmd) => cmd::tag::run(&ctx, cli.caps.as_deref(), tag_cmd),
     }
 }
 
 mod cmd {
     pub mod daily;
     pub mod note;
-    pub mod r#move;
-    pub mod delete;
+    pub mod note_resolve;
     pub mod list;
     pub mod print;
-    pub mod search;
-    pub mod search_content;
-    pub mod frontmatter;
+    pub mod meta;
     pub mod capsa;
-    pub mod set_default;
-    pub mod print_default;
+    pub mod default;
     pub mod tag;
     pub mod gc;
     pub mod resolve;

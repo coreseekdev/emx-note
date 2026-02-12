@@ -38,12 +38,12 @@ pub fn secure_path(base: &Path, relative: &str) -> io::Result<PathBuf> {
     }
 
     // Final check: ensure the resolved path is within the base
-    // Use canonicalize if base exists, otherwise just check with starts_with
+    // Use dunce::canonicalize if base exists to avoid UNC prefix on Windows
     if base.exists() {
-        let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+        let canonical_base = dunce::canonicalize(&base).unwrap_or_else(|_| base.to_path_buf());
         // For result, we can only canonicalize if it exists, otherwise just check prefix
         if result.exists() {
-            let canonical_result = result.canonicalize().unwrap_or_else(|_| result.clone());
+            let canonical_result = dunce::canonicalize(&result).unwrap_or_else(|_| result.clone());
             if !canonical_result.starts_with(&canonical_base) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -83,8 +83,8 @@ pub fn validate_link_target(target: &Path, home: &Path) -> io::Result<PathBuf> {
         home.join(target)
     };
 
-    // Canonicalize if exists
-    let canonical = resolved.canonicalize().unwrap_or(resolved.clone());
+    // Canonicalize if exists (use dunce to avoid UNC prefix on Windows)
+    let canonical = dunce::canonicalize(&resolved).unwrap_or(resolved.clone());
 
     // Check if it's a directory (valid link target)
     if !canonical.is_dir() {

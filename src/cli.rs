@@ -1,7 +1,5 @@
 use clap::{Parser, Subcommand};
 
-use crate::resolve::DEFAULT_CAPSA_NAME;
-
 /// emx-note - A Zettelkasten-style note management tool
 #[derive(Parser, Debug)]
 #[command(name = "emx-note")]
@@ -43,19 +41,11 @@ pub enum Command {
         source: Option<String>,
     },
 
-    /// Move/rename a note (updates all links)
-    Move {
-        /// Current note path
-        current: String,
-
-        /// New note path
-        new: String,
-    },
-
-    /// Delete a note
-    Delete {
-        /// Note relative path
-        note_path: String,
+    /// Resolve note reference to file path
+    #[command(alias = "rv")]
+    Resolve {
+        /// Note reference (name, timestamp, or date/prefix)
+        note_name: String,
     },
 
     /// List notes
@@ -72,42 +62,31 @@ pub enum Command {
         note_name: String,
     },
 
-    /// Interactive fuzzy search for notes
-    #[command(alias = "s")]
-    Search,
+    /// Manage note metadata (YAML frontmatter)
+    #[command(alias = "m")]
+    Meta {
+        /// Note reference
+        note_ref: String,
 
-    /// Search note content
-    #[command(alias = "sc")]
-    SearchContent {
-        /// Search keyword
-        search_term: String,
-    },
+        /// Key to get/set/delete (supports nested keys like "meta.status")
+        key: Option<String>,
 
-    /// Manage note frontmatter
-    #[command(alias = "fm")]
-    FrontMatter {
-        /// Note name
-        note_name: String,
+        /// Values to set (single value = string, multiple values = array)
+        value: Vec<String>,
 
-        #[command(subcommand)]
-        action: FrontMatterAction,
+        /// Delete the specified key
+        #[arg(long)]
+        delete: bool,
     },
 
     /// Manage capsae (note collections)
     #[command(subcommand)]
     Capsa(CapsaCommand),
 
-    /// Set the default capsa
-    SetDefault {
-        /// Capsa name
-        caps: String,
-    },
-
-    /// Print default capsa info
-    PrintDefault {
-        /// Output path only
-        #[arg(long)]
-        path_only: bool,
+    /// Get or set the default capsa
+    Default {
+        /// Capsa name to set as default (optional, prints current if not provided)
+        caps: Option<String>,
     },
 
     /// Find and manage orphaned notes (no incoming links)
@@ -129,68 +108,39 @@ pub enum Command {
         verbose: bool,
     },
 
-    /// Manage tags/labels (#xxxx.md files)
+    /// Manage tags (#xxxx.md files)
     #[command(subcommand)]
     Tag(TagCommand),
-
-    /// Alias for tag command
-    #[command(hide = true, subcommand)]
-    Label(TagCommand),
 }
 
 #[derive(Subcommand, Debug)]
 pub enum TagCommand {
-    /// Add a note to a tag
+    /// Add tags to a note
     Add {
-        /// Tag name (without # prefix)
-        tag: String,
+        /// Note reference (supports resolve/print format)
+        note_ref: String,
 
-        /// Note path to tag
-        note: String,
+        /// Tags to add (without # prefix)
+        #[arg(required = true)]
+        tags: Vec<String>,
+
+        /// Force: apply to all matching notes if ambiguous
+        #[arg(short, long)]
+        force: bool,
     },
 
-    /// Remove a note from a tag
+    /// Remove tags from a note
     Remove {
-        /// Tag name (without # prefix)
-        tag: String,
+        /// Note reference (supports resolve/print format)
+        note_ref: String,
 
-        /// Note path to untag
-        note: String,
-    },
+        /// Tags to remove (without # prefix)
+        #[arg(required = true)]
+        tags: Vec<String>,
 
-    /// List all tags or notes in a tag
-    List {
-        /// Tag name to list notes (optional, lists all tags if not specified)
-        tag: Option<String>,
-    },
-
-    /// Delete a tag file
-    Delete {
-        /// Tag name to delete
-        tag: String,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-pub enum FrontMatterAction {
-    /// Print frontmatter
-    Print,
-
-    /// Edit a key-value pair
-    Edit {
-        /// Key to edit (supports nested keys with dots)
+        /// Force: apply to all matching notes if ambiguous
         #[arg(short, long)]
-        key: String,
-
-        /// Value to set
-        value: String,
-    },
-
-    /// Delete a key
-    Delete {
-        /// Key to delete
-        #[arg(short, long)]
-        key: String,
+        force: bool,
     },
 }
 
@@ -199,22 +149,18 @@ pub enum CapsaCommand {
     /// List all capsae
     List,
 
-    /// Create a new capsa
+    /// Create a new capsa (or link to external directory)
     Create {
         /// Name for the new capsa
         name: String,
+
+        /// Optional path to link to (creates a link capsa if provided)
+        path: Option<String>,
     },
 
-    /// Show info about a capsa
-    Info {
-        /// Name of the capsa (default: default)
-        #[arg(short, long, default_value = DEFAULT_CAPSA_NAME)]
-        name: String,
-    },
-
-    /// Delete a capsa
-    Delete {
-        /// Name of the capsa to delete
+    /// Resolve a capsa to its actual path (useful for links)
+    Resolve {
+        /// Name of the capsa to resolve
         name: String,
     },
 }

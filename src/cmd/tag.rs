@@ -1,6 +1,6 @@
-//! Tag/Label management module
+//! Tag management module
 //!
-//! Tags are stored as #xxxx.md files in the note/ directory.
+//! Tags are stored as #xxxx.md files in the capsa root directory.
 //! Notes added to tags are grouped by date.
 
 use std::fs::{self, OpenOptions};
@@ -12,47 +12,99 @@ use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, cmd: TagCommand) -> io::Result<()> {
     match cmd {
-        TagCommand::Add { tag, note } => add_tag(ctx, caps, &tag, &note),
-        TagCommand::Remove { tag, note } => remove_tag(ctx, caps, &tag, &note),
-        TagCommand::List { tag } => list_tags(ctx, caps, tag.as_deref()),
-        TagCommand::Delete { tag } => delete_tag(ctx, caps, &tag),
+        TagCommand::Add { note_ref, tags, force } => {
+            add_tags(ctx, caps, &note_ref, &tags, force)
+        }
+        TagCommand::Remove { note_ref, tags, force } => {
+            remove_tags(ctx, caps, &note_ref, &tags, force)
+        }
     }
 }
 
 /// Get the tag file path (in capsa root directory)
 fn tag_path(capsa_path: &PathBuf, tag: &str) -> PathBuf {
-    // Normalize tag name (remove # prefix if present)
     let tag_name = tag.trim_start_matches('#');
     capsa_path.join(format!("#{}.md", tag_name))
 }
 
-/// Add a note to a tag
-fn add_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, note: &str) -> io::Result<()> {
+/// Add tags to a note
+fn add_tags(
+    ctx: &emx_note::ResolveContext,
+    caps: Option<&str>,
+    note_ref: &str,
+    tags: &[String],
+    force: bool,
+) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Verify note exists
-    let note_path = capsa_ref.path.join(note);
-    if !note_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Note '{}' not found", note)
-        ));
+    // Resolve note reference
+    let extensions = vec![".md", ".mx", ".emx"];
+    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, &extensions)?;
+
+    let note_paths = match resolved {
+        emx_note::ResolvedNote::Found(path) => vec![path],
+        emx_note::ResolvedNote::Ambiguous(candidates) => {
+            if !force {
+                eprintln!("Error: Ambiguous note reference '{}'", note_ref);
+                eprintln!("Found {} matching notes:", candidates.len());
+                for (i, path) in candidates.iter().enumerate() {
+                    let relative = path.strip_prefix(&capsa_ref.path)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    eprintln!("  {}. {}", i + 1, relative);
+                }
+                eprintln!("\nUse --force to add tags to all matching notes.");
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Ambiguous note reference: {} candidates found", candidates.len())
+                ));
+            }
+            candidates
+        }
+        emx_note::ResolvedNote::NotFound => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Note '{}' not found", note_ref)
+            ));
+        }
+    };
+
+    // Add each tag to each note
+    for note_path in &note_paths {
+        let relative = note_path.strip_prefix(&capsa_ref.path)
+            .unwrap_or(note_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        for tag in tags {
+            add_single_tag(&capsa_ref.path, &relative, note_path, tag)?;
+        }
     }
 
-    let tag_file = tag_path(&capsa_ref.path, tag);
+    Ok(())
+}
+
+/// Add a single tag to a single note
+fn add_single_tag(
+    capsa_path: &PathBuf,
+    note_relative: &str,
+    note_path: &PathBuf,
+    tag: &str,
+) -> io::Result<()> {
+    let tag_file = tag_path(capsa_path, tag);
     let now = Local::now();
     let date_display = now.format("%Y-%m-%d").to_string();
 
-    // Get note title (first heading or filename)
-    let note_title = get_note_title(&note_path)?;
+    // Get note title
+    let note_title = get_note_title(note_path)?;
 
     // Create or append to tag file
     let mut file = if tag_file.exists() {
         // Check if note already tagged
         let content = fs::read_to_string(&tag_file)?;
-        if content.contains(&format!("]({})", note)) {
-            println!("Note '{}' already tagged with #{}", note, tag.trim_start_matches('#'));
-            return Ok(());
+        if content.contains(&format!("]({})", note_relative)) {
+            return Ok(()); // Already tagged, silently skip
         }
         OpenOptions::new().append(true).open(&tag_file)?
     } else {
@@ -63,7 +115,6 @@ fn add_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, note: 
     };
 
     // Add date group header and link
-    // Check if today's date header already exists
     let content = fs::read_to_string(&tag_file)?;
     let date_header = format!("## {}", date_display);
 
@@ -72,25 +123,79 @@ fn add_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, note: 
         writeln!(file, "## {}", date_display)?;
     }
 
-    writeln!(file, "- [{}]({})", note_title, note)?;
+    writeln!(file, "- [{}]({})", note_title, note_relative)?;
 
-    let tag_name = tag.trim_start_matches('#');
-    println!("Added '{}' to #{}", note, tag_name);
-    println!("  in: {}", util::display_path(&tag_file));
+    // Output tag file path
+    println!("{}", util::display_path(&tag_file));
 
     Ok(())
 }
 
-/// Remove a note from a tag
-fn remove_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, note: &str) -> io::Result<()> {
+/// Remove tags from a note
+fn remove_tags(
+    ctx: &emx_note::ResolveContext,
+    caps: Option<&str>,
+    note_ref: &str,
+    tags: &[String],
+    force: bool,
+) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-    let tag_file = tag_path(&capsa_ref.path, tag);
+
+    // Resolve note reference
+    let extensions = vec![".md", ".mx", ".emx"];
+    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, &extensions)?;
+
+    let note_paths = match resolved {
+        emx_note::ResolvedNote::Found(path) => vec![path],
+        emx_note::ResolvedNote::Ambiguous(candidates) => {
+            if !force {
+                eprintln!("Error: Ambiguous note reference '{}'", note_ref);
+                eprintln!("Found {} matching notes:", candidates.len());
+                for (i, path) in candidates.iter().enumerate() {
+                    let relative = path.strip_prefix(&capsa_ref.path)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    eprintln!("  {}. {}", i + 1, relative);
+                }
+                eprintln!("\nUse --force to remove tags from all matching notes.");
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Ambiguous note reference: {} candidates found", candidates.len())
+                ));
+            }
+            candidates
+        }
+        emx_note::ResolvedNote::NotFound => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Note '{}' not found", note_ref)
+            ));
+        }
+    };
+
+    // Remove each tag from each note
+    for note_path in &note_paths {
+        let relative = note_path.strip_prefix(&capsa_ref.path)
+            .unwrap_or(note_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        for tag in tags {
+            remove_single_tag(&capsa_ref.path, &relative, tag)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Remove a single tag from a single note
+fn remove_single_tag(capsa_path: &PathBuf, note_relative: &str, tag: &str) -> io::Result<()> {
+    let tag_file = tag_path(capsa_path, tag);
 
     if !tag_file.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Tag '#{}' not found", tag.trim_start_matches('#'))
-        ));
+        // Tag doesn't exist, silently succeed (idempotent)
+        return Ok(());
     }
 
     let content = fs::read_to_string(&tag_file)?;
@@ -102,14 +207,12 @@ fn remove_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, not
     for line in lines.iter() {
         // Track date headers
         if line.starts_with("## ") {
-            // Check if previous date section was empty (only had the header)
+            // Check if previous date section was empty
             if let Some(idx) = current_date_idx {
-                // Check if section only has the date header
                 let section_content: Vec<&String> = new_lines[idx..].iter()
                     .filter(|l| !l.trim().is_empty())
                     .collect();
                 if section_content.len() == 1 {
-                    // Only date header, remove it
                     new_lines.truncate(idx);
                 }
             }
@@ -119,9 +222,9 @@ fn remove_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, not
         }
 
         // Check for the note link
-        if line.contains(&format!("]({})", note)) {
+        if line.contains(&format!("]({})", note_relative)) {
             removed = true;
-            continue; // Skip this line (remove it)
+            continue; // Skip this line
         }
 
         new_lines.push(line.to_string());
@@ -133,102 +236,25 @@ fn remove_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str, not
             .filter(|l| !l.trim().is_empty())
             .collect();
         if section_content.len() == 1 {
-            // Only date header, remove it
             new_lines.truncate(idx);
         }
     }
 
     if !removed {
-        println!("Note '{}' not found in #{}", note, tag.trim_start_matches('#'));
+        // Note wasn't in this tag, silently succeed
         return Ok(());
     }
 
     // If tag file only has main heading left, delete it
     let non_empty: Vec<&String> = new_lines.iter().filter(|l| !l.trim().is_empty()).collect();
-    if non_empty.is_empty() {
+    if non_empty.is_empty() || (non_empty.len() == 1 && non_empty[0].starts_with('#')) {
         fs::remove_file(&tag_file)?;
-        println!("Removed '{}' from #{} (tag is now empty, deleted)", note, tag.trim_start_matches('#'));
-    } else if non_empty.len() == 1 && non_empty[0].starts_with('#') {
-        fs::remove_file(&tag_file)?;
-        println!("Removed '{}' from #{} (tag is now empty, deleted)", note, tag.trim_start_matches('#'));
     } else {
         fs::write(&tag_file, new_lines.join("\n") + "\n")?;
-        println!("Removed '{}' from #{}", note, tag.trim_start_matches('#'));
     }
 
-    Ok(())
-}
-
-/// List all tags or notes in a specific tag
-fn list_tags(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: Option<&str>) -> io::Result<()> {
-    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-
-    if let Some(tag_name) = tag {
-        // List notes in a specific tag
-        let tag_file = tag_path(&capsa_ref.path, tag_name);
-        if !tag_file.exists() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Tag '#{}' not found", tag_name.trim_start_matches('#'))
-            ));
-        }
-
-        let content = fs::read_to_string(&tag_file)?;
-        println!("# {}:", tag_name.trim_start_matches('#'));
-        for line in content.lines() {
-            if line.starts_with("- [") {
-                // Extract note info
-                println!("  {}", line);
-            } else if line.starts_with("## ") {
-                println!("{}", line);
-            }
-        }
-    } else {
-        // List all tags in note/ directory
-        let mut tags: Vec<String> = Vec::new();
-        let note_dir = capsa_ref.path.join("note");
-
-        if let Ok(entries) = fs::read_dir(&note_dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy();
-
-                if name_str.starts_with('#') && name_str.ends_with(".md") {
-                    // Extract tag name (remove # prefix and .md suffix)
-                    let tag = name_str.trim_start_matches('#').trim_end_matches(".md");
-                    tags.push(tag.to_string());
-                }
-            }
-        }
-
-        if tags.is_empty() {
-            println!("No tags found.");
-        } else {
-            tags.sort();
-            println!("Tags:");
-            for tag in tags {
-                println!("  #{}", tag);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Delete a tag file
-fn delete_tag(ctx: &emx_note::ResolveContext, caps: Option<&str>, tag: &str) -> io::Result<()> {
-    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-    let tag_file = tag_path(&capsa_ref.path, tag);
-
-    if !tag_file.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Tag '#{}' not found", tag.trim_start_matches('#'))
-        ));
-    }
-
-    fs::remove_file(&tag_file)?;
-    println!("Deleted tag #{}", tag.trim_start_matches('#'));
+    // Output tag file path
+    println!("{}", util::display_path(&tag_file));
 
     Ok(())
 }

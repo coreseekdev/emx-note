@@ -7,7 +7,7 @@ Content of note2
 -- tmp-linked.txt --
 See [[note1]] for reference
 
-# Test note commands (list, print, delete, move)
+# Test note commands (list, print, resolve, move)
 env EMX_NOTE_HOME=$WORK/.emx-notes
 env EMX_AGENT_NAME=
 
@@ -30,10 +30,13 @@ stdout 'linked.md'
 exec emx-note --home $WORK/.emx-notes -c test-notes print note2
 stdout 'Content of note2'
 
-# Test print with backlinks
-exec emx-note --home $WORK/.emx-notes -c test-notes print --mentions note1
-stdout 'Backlinks'
-stdout 'linked'
+# Test resolve command - should output full path
+exec emx-note --home $WORK/.emx-notes -c test-notes resolve note1
+stdout 'note1.md'
+
+# Test resolve with non-existent note
+! exec emx-note --home $WORK/.emx-notes -c test-notes resolve nonexistent
+stderr 'not found'
 
 # Test move command
 exec emx-note --home $WORK/.emx-notes -c test-notes move note1.md renamed-note.md
@@ -47,9 +50,13 @@ exists $WORK/.emx-notes/test-notes/note/renamed-note.md
 exec emx-note --home $WORK/.emx-notes -c test-notes print linked
 stdout 'renamed-note'
 
-# Test delete command (soft delete - renames to .hidden)
-exec emx-note --home $WORK/.emx-notes -c test-notes delete note2.md
+# Test resolve after move - should find new path
+exec emx-note --home $WORK/.emx-notes -c test-notes resolve renamed-note
+stdout 'renamed-note.md'
 
-# Verify delete worked (file is renamed to .note2.md)
+# Verify we can delete a note using resolve + rm
+exec emx-note --home $WORK/.emx-notes -c test-notes resolve note2 > $WORK/note2_path.txt
+exec rm "$(cat $WORK/note2_path.txt)"
+
+# Verify delete worked
 ! exists $WORK/.emx-notes/test-notes/note/note2.md
-exists $WORK/.emx-notes/test-notes/note/.note2.md
