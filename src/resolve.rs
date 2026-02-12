@@ -75,7 +75,13 @@ impl ResolveContext {
             return name.to_string();
         }
 
-        // Apply agent prefix
+        // Special case: "default" maps directly to agent name
+        // (agent's personal default capsa, not "agent-default")
+        if name == DEFAULT_CAPSA_NAME {
+            return self.agent_name.as_ref().unwrap().to_string();
+        }
+
+        // Apply agent prefix to other names
         format!("{}-{}", self.agent_name.as_ref().unwrap(), name)
     }
 
@@ -201,15 +207,6 @@ fn parse_link_content(content: &str) -> Option<PathBuf> {
 mod tests {
     use super::*;
 
-    fn test_context(home: &str) -> ResolveContext {
-        ResolveContext {
-            home: PathBuf::from(home),
-            global: false,
-            agent_name: None,
-            default_override: None,
-        }
-    }
-
     #[test]
     fn test_default_capsa_name_priority() {
         // Priority 1: EMX_NOTE_DEFAULT
@@ -231,24 +228,24 @@ mod tests {
         assert_eq!(ctx.default_capsa_name(), DEFAULT_CAPSA_NAME);
     }
 
-    #[test]
-    fn test_agent_prefix() {
-        // With agent, non-global
-        let ctx = ResolveContext {
-            home: "/tmp".into(),
-            global: false,
-            agent_name: Some("agent1".to_string()),
-            default_override: None,
-        };
-        assert_eq!(ctx.apply_agent_prefix("my-notes"), "agent1-my-notes");
-
-        // Without agent
-        let ctx = ResolveContext {
-            home: "/tmp".into(),
+    fn test_context(home: &str) -> ResolveContext {
+        ResolveContext {
+            home: PathBuf::from(home),
             global: false,
             agent_name: None,
             default_override: None,
-        };
+        }
+    }
+
+    #[test]
+    fn test_agent_prefix() {
+        // With agent, non-global
+        let mut ctx = test_context("/tmp");
+        ctx.agent_name = Some("agent1".to_string());
+        assert_eq!(ctx.apply_agent_prefix("my-notes"), "agent1-my-notes");
+
+        // Without agent
+        let ctx = test_context("/tmp");
         assert_eq!(ctx.apply_agent_prefix("my-notes"), "my-notes");
 
         // Global bypasses agent prefix
@@ -259,6 +256,11 @@ mod tests {
             default_override: None,
         };
         assert_eq!(ctx.apply_agent_prefix("my-notes"), "my-notes");
+
+        // Special case: "default" maps to agent name
+        let mut ctx = test_context("/tmp");
+        ctx.agent_name = Some("agent1".to_string());
+        assert_eq!(ctx.apply_agent_prefix(".default"), "agent1");
     }
 
     #[test]
