@@ -1,7 +1,8 @@
 pub mod cli;
-pub mod commands;
+pub mod resolve;
 
-pub use cli::{Cli, Command};
+pub use cli::{Cli, Command, CapssaCommand, FrontMatterAction};
+pub use resolve::{ResolveContext, CapssaRef, DEFAULT_CAPSA_NAME};
 
 /// Default notes directory name (relative to home)
 pub const DEFAULT_NOTES_DIR: &str = ".emx-notes";

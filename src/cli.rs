@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
 
+use crate::resolve::DEFAULT_CAPSA_NAME;
+
 /// emx-note - A Zettelkasten-style note management tool
 #[derive(Parser, Debug)]
 #[command(name = "emx-note")]
@@ -11,24 +13,153 @@ pub struct Cli {
     #[arg(long, value_name = "PATH")]
     pub home: Option<String>,
 
+    /// Global operation (bypasses agent prefixing)
+    #[arg(short = 'g', long, global = true)]
+    pub global: bool,
+
+    /// Name of the capsa (note collection)
+    #[arg(short, long, alias = "vault", global = true, value_name = "CAPSA")]
+    pub caps: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Open a note in the default application
+    Open {
+        /// Note name or relative path
+        note_name: String,
+    },
+
+    /// Create or open today's daily note
+    Daily,
+
+    /// Create a new note
+    Create {
+        /// Note name (can include path)
+        #[arg(short, long)]
+        content: Option<String>,
+
+        /// Append to existing note
+        #[arg(short, long)]
+        append: bool,
+
+        /// Overwrite existing note
+        #[arg(short, long)]
+        overwrite: bool,
+
+        /// Open note after creating
+        #[arg(short, long)]
+        open: bool,
+
+        /// Title for the note
+        note_name: String,
+    },
+
+    /// Move/rename a note (updates all links)
+    Move {
+        /// Current note path
+        current: String,
+
+        /// New note path
+        new: String,
+
+        /// Open after moving
+        #[arg(short, long)]
+        open: bool,
+    },
+
+    /// Delete a note
+    Delete {
+        /// Note relative path
+        note_path: String,
+    },
+
+    /// List notes in the capsa
+    #[command(alias = "ls")]
+    List {
+        /// Relative path (default: root directory)
+        path: Option<String>,
+    },
+
+    /// Print note content to stdout
+    #[command(alias = "p")]
+    Print {
+        /// Note name or relative path
+        note_name: String,
+
+        /// Include backlink list
+        #[arg(short, long)]
+        mentions: bool,
+    },
+
+    /// Interactive fuzzy search for notes
+    #[command(alias = "s")]
+    Search,
+
+    /// Search note content
+    #[command(alias = "sc")]
+    SearchContent {
+        /// Search keyword
+        search_term: String,
+    },
+
+    /// Manage note frontmatter
+    #[command(alias = "fm")]
+    FrontMatter {
+        /// Note name
+        note_name: String,
+
+        #[command(subcommand)]
+        action: FrontMatterAction,
+    },
+
     /// Manage capsae (note collections)
     #[command(subcommand)]
-    Capsa(CapsaCommand),
+    Capssa(CapssaCommand),
 
-    /// Manage notes within a capsa
-    #[command(subcommand)]
-    Note(NoteCommand),
+    /// Set the default capsa
+    SetDefault {
+        /// Capssa name
+        caps: String,
+    },
+
+    /// Print default capsa info
+    PrintDefault {
+        /// Output path only
+        #[arg(long)]
+        path_only: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
-pub enum CapsaCommand {
-    /// List all capsae (note collections)
+pub enum FrontMatterAction {
+    /// Print frontmatter
+    Print,
+
+    /// Edit a key-value pair
+    Edit {
+        /// Key to edit (supports nested keys with dots)
+        #[arg(short, long)]
+        key: String,
+
+        /// Value to set
+        value: String,
+    },
+
+    /// Delete a key
+    Delete {
+        /// Key to delete
+        #[arg(short, long)]
+        key: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CapssaCommand {
+    /// List all capsae
     List,
 
     /// Create a new capsa
@@ -40,7 +171,7 @@ pub enum CapsaCommand {
     /// Show info about a capsa
     Info {
         /// Name of the capsa (default: default)
-        #[arg(short, long, default_value = "default")]
+        #[arg(short, long, default_value = DEFAULT_CAPSA_NAME)]
         name: String,
     },
 
@@ -48,37 +179,5 @@ pub enum CapsaCommand {
     Delete {
         /// Name of the capsa to delete
         name: String,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-pub enum NoteCommand {
-    /// List all notes in the current capsa
-    List {
-        /// Name of the capsa
-        #[arg(short, long, default_value = "default")]
-        capsa: String,
-    },
-
-    /// Create a new note
-    Create {
-        /// Name of the capsa
-        #[arg(short, long, default_value = "default")]
-        capsa: String,
-
-        /// Title for the note
-        title: String,
-    },
-
-    /// Edit a note
-    Edit {
-        /// Note ID or title to edit
-        id: String,
-    },
-
-    /// View a note
-    View {
-        /// Note ID or title to view
-        id: String,
     },
 }
