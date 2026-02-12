@@ -1,9 +1,8 @@
 use std::io;
 use std::fs;
 use chrono::Local;
-use crate::ResolveContext;
 
-pub fn run(ctx: &ResolveContext, caps: Option<&str>) -> io::Result<()> {
+pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>) -> io::Result<()> {
     let capsa_ref = super::open::resolve_capsa(ctx, caps)?;
     let now = Local::now();
     let date_str = now.format("%Y%m%d");

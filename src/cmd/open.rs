@@ -1,7 +1,6 @@
 use std::io;
-use crate::{ResolveContext, CapssaRef};
 
-pub fn run(ctx: &ResolveContext, caps: Option<&str>, note_name: String) -> io::Result<()> {
+pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, note_name: String) -> io::Result<()> {
     let capsa_ref = resolve_capsa(ctx, caps)?;
     println!("Opening note: {}", note_name);
     println!("  in capsa: {} at {}", capsa_ref.name, capsa_ref.path.display());
@@ -9,9 +8,9 @@ pub fn run(ctx: &ResolveContext, caps: Option<&str>, note_name: String) -> io::R
     Ok(())
 }
 
-pub fn resolve_capsa(ctx: &ResolveContext, caps: Option<&str>) -> io::Result<CapssaRef> {
+pub fn resolve_capsa(ctx: &emx_note::ResolveContext, caps: Option<&str>) -> io::Result<emx_note::CapssaRef> {
     let default = ctx.default_capsa_name();
     let capsa_name = caps.unwrap_or(&default);
-    ctx.resolve_capsa(capssa_name)
+    ctx.resolve_capsa(capsa_name)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Capsa not found"))
 }

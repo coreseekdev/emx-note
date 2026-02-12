@@ -10,6 +10,9 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
 
+[dev-dependencies]
+emx-testspec = { path = "../emx-testspec" }
+
 [lib]
 name = "emx_note"
 path = "src/lib.rs"

@@ -1,7 +1,7 @@
 use std::io;
-use crate::ResolveContext;
+use emx_note::ResolveContext;
 
-pub fn run(ctx: &ResolveContext, caps: Option<&str>, note_name: String, _mentions: bool) -> io::Result<()> {
+pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, note_name: String, _mentions: bool) -> io::Result<()> {
     let capsa_ref = super::open::resolve_capsa(ctx, caps)?;
     println!("Printing note: {}", note_name);
     println!("  in capsa: {}", capsa_ref.name);

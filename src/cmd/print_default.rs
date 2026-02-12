@@ -1,7 +1,7 @@
 use std::io;
-use crate::ResolveContext;
+use emx_note::ResolveContext;
 
-pub fn run(ctx: &ResolveContext, path_only: bool) -> io::Result<()> {
+pub fn run(ctx: &emx_note::ResolveContext, path_only: bool) -> io::Result<()> {
     let default_name = ctx.default_capsa_name();
     if path_only {
         if let Some(cap_ref) = ctx.resolve_default() {

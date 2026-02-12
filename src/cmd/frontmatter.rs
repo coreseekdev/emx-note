@@ -1,8 +1,8 @@
 use std::io;
-use crate::ResolveContext;
+use emx_note::ResolveContext;
 
 pub fn run(
-    ctx: &ResolveContext,
+    ctx: &emx_note::ResolveContext,
     caps: Option<&str>,
     note_name: String,
     action: emx_note::FrontMatterAction,
