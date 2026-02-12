@@ -1,5 +1,4 @@
 use std::io;
-use emx_note::ResolveContext;
 
 pub fn run(ctx: &emx_note::ResolveContext, path_only: bool) -> io::Result<()> {
     let default_name = ctx.default_capsa_name();

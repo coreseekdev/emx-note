@@ -1,8 +1,10 @@
 pub mod cli;
 pub mod resolve;
+pub mod util;
 
-pub use cli::{Cli, Command, CapssaCommand, FrontMatterAction};
-pub use resolve::{ResolveContext, CapssaRef, DEFAULT_CAPSA_NAME};
+pub use cli::{Cli, Command, CapsaCommand, FrontMatterAction, TagCommand};
+pub use resolve::{ResolveContext, CapsaRef, DEFAULT_CAPSA_NAME};
+pub use util::{secure_path, validate_link_target, extract_note_title, slugify};
 
 /// Default notes directory name (relative to home)
 pub const DEFAULT_NOTES_DIR: &str = ".emx-notes";

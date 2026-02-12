@@ -1,0 +1,41 @@
+# Test GC command
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+
+# Create a capsa first
+exec emx-note --home $WORK/.emx-notes -g capssa create test-gc
+stdout 'Created capsa: test-gc'
+
+# Create an orphan note (no incoming links)
+exec emx-note --home $WORK/.emx-notes -c test-gc create orphan-note.md
+stdout 'Created note'
+
+# Create a note that will be linked TO
+exec emx-note --home $WORK/.emx-notes -c test-gc create linked-note.md
+stdout 'Created note'
+
+# Create a note that links TO linked-note (but has no incoming links itself)
+exec emx-note --home $WORK/.emx-notes -c test-gc create --content 'See [[linked-note]] for more' note-with-link.md
+stdout 'Created note'
+
+# Run GC in dry-run mode (should not delete)
+exec emx-note --home $WORK/.emx-notes -c test-gc gc --days 0
+stdout 'orphan-note.md'
+stdout 'note-with-link.md'
+stdout 'Dry-run'
+
+# Verify files still exist (dry-run doesn't delete)
+exists $WORK/.emx-notes/test-gc/orphan-note.md
+exists $WORK/.emx-notes/test-gc/linked-note.md
+exists $WORK/.emx-notes/test-gc/note-with-link.md
+
+# Run GC with execute and force (skip confirmation)
+# Should delete: orphan-note.md (no links), note-with-link.md (no incoming links)
+# Should keep: linked-note.md (has incoming link from note-with-link.md)
+exec emx-note --home $WORK/.emx-notes -c test-gc gc --days 0 --execute --force
+stdout 'Deleted'
+
+# Verify orphan and note-with-link are deleted but linked-note still exists
+! exists $WORK/.emx-notes/test-gc/orphan-note.md
+! exists $WORK/.emx-notes/test-gc/note-with-link.md
+exists $WORK/.emx-notes/test-gc/linked-note.md

@@ -1,5 +1,4 @@
 use std::io;
-use emx_note::ResolveContext;
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -7,7 +6,7 @@ pub fn run(
     note_name: String,
     action: emx_note::FrontMatterAction,
 ) -> io::Result<()> {
-    let capsa_ref = super::open::resolve_capsa(ctx, caps)?;
+    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
     println!("Frontmatter for note: {}", note_name);
     println!("  in capsa: {}", capsa_ref.name);
     match action {

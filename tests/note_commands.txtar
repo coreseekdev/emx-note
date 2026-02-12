@@ -1,0 +1,50 @@
+# Test note commands (list, print, delete, move)
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+
+# Create a capsa first
+exec emx-note --home $WORK/.emx-notes -g capssa create test-notes
+stdout 'Created capsa: test-notes'
+
+# Create some notes
+exec emx-note --home $WORK/.emx-notes -c test-notes create note1.md
+stdout 'Created note'
+exec emx-note --home $WORK/.emx-notes -c test-notes create --content 'Content of note2' note2.md
+stdout 'Created note'
+exec emx-note --home $WORK/.emx-notes -c test-notes create --content 'See [[note1]] for reference' linked.md
+stdout 'Created note'
+
+# Test list command
+exec emx-note --home $WORK/.emx-notes -c test-notes list
+stdout 'note1.md'
+stdout 'note2.md'
+stdout 'linked.md'
+stdout 'daily/'
+
+# Test print command
+exec emx-note --home $WORK/.emx-notes -c test-notes print note2
+stdout 'Content of note2'
+
+# Test print with backlinks
+exec emx-note --home $WORK/.emx-notes -c test-notes print --mentions note1
+stdout 'Backlinks'
+stdout 'linked.md'
+
+# Test move command
+exec emx-note --home $WORK/.emx-notes -c test-notes move note1.md renamed-note.md
+stdout 'Moved'
+
+# Verify move worked
+! exists $WORK/.emx-notes/test-notes/note1.md
+exists $WORK/.emx-notes/test-notes/renamed-note.md
+
+# Verify links were updated
+exec emx-note --home $WORK/.emx-notes -c test-notes print linked
+stdout 'renamed-note'
+
+# Test delete command
+exec emx-note --home $WORK/.emx-notes -c test-notes delete note2.md
+stdout 'Deleted'
+
+# Verify delete worked
+! exists $WORK/.emx-notes/test-notes/note2.md

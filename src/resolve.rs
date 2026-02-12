@@ -92,7 +92,7 @@ impl ResolveContext {
 
     /// Resolve a capsa name to its actual path
     /// Returns None if the capsa doesn't exist
-    pub fn resolve_capsa(&self, name: &str) -> Option<CapssaRef> {
+    pub fn resolve_capsa(&self, name: &str) -> Option<CapsaRef> {
         let prefixed_name = self.apply_agent_prefix(name);
         let capsas_path = &self.home;
 
@@ -105,7 +105,7 @@ impl ResolveContext {
         // Check if it's a directory
         let dir_path = link_path;
         if dir_path.is_dir() {
-            return Some(CapssaRef {
+            return Some(CapsaRef {
                 name: prefixed_name.clone(),
                 path: dir_path.clone(),
                 is_link: false,
@@ -117,24 +117,23 @@ impl ResolveContext {
     }
 
     /// Resolve the default capsa
-    pub fn resolve_default(&self) -> Option<CapssaRef> {
+    pub fn resolve_default(&self) -> Option<CapsaRef> {
         let name = self.default_capsa_name();
         self.resolve_capsa(&name)
     }
 
     /// Resolve a link file to its target
-    fn resolve_link(&self, link_path: &Path, name: &str) -> Option<CapssaRef> {
+    fn resolve_link(&self, link_path: &Path, name: &str) -> Option<CapsaRef> {
         // Read link file content
         let content = std::fs::read_to_string(link_path).ok()?;
         let target = parse_link_content(&content)?;
 
-        if !target.exists() {
-            return None;
-        }
+        // Validate the link target is a valid directory
+        let validated = crate::util::validate_link_target(&target, &self.home).ok()?;
 
-        Some(CapssaRef {
+        Some(CapsaRef {
             name: name.to_string(),
-            path: target,
+            path: validated,
             is_link: true,
             is_default: name == DEFAULT_CAPSA_NAME,
         })
@@ -169,7 +168,7 @@ impl ResolveContext {
 
 /// Reference to a resolved capsa
 #[derive(Debug, Clone)]
-pub struct CapssaRef {
+pub struct CapsaRef {
     /// The (possibly prefixed) name of the capsa
     pub name: String,
     /// The actual path to the capsa (may be external if link)

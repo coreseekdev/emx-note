@@ -1,15 +1,16 @@
-use std::io::{self, Write};
+//! Daily note command module
+
+use std::io::{self, Write, Read};
 use std::fs::{self, OpenOptions};
 use chrono::Local;
-use emx_note::CapssaRef;
+use emx_note::CapsaRef;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<String>) -> io::Result<()> {
-    let capsa_ref = super::open::resolve_capsa(ctx, caps)?;
+    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
     let now = Local::now();
     let date_str = now.format("%Y%m%d").to_string();
     let time_str = now.format("%H%M%S").to_string();
     let date_display = now.format("%Y-%m-%d").to_string();
-    let datetime_display = now.format("%Y-%m-%d %H:%M:%S").to_string();
 
     // Use provided title or default
     let title = title.unwrap_or_else(|| "Daily Note".to_string());
@@ -31,33 +32,35 @@ pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<Str
     // Create note file
     let note_path = daily_dir.join(&filename);
 
-    // Check if template exists and use it
-    let template_path = capsa_ref.path.join(".template").join("DAILY.md");
-    let content = if template_path.exists() {
-        let template = fs::read_to_string(&template_path)?;
-        // Replace placeholders
-        template
-            .replace("{{title}}", &title)
-            .replace("{{date}}", &date_display)
-            .replace("{{datetime}}", &datetime_display)
-    } else {
-        format!("# {}\n\n_Created: {}_\n\n", title, datetime_display)
-    };
+    // Read content from stdin (empty if no data)
+    let content = read_stdin_content()?;
 
+    // Write the file
     fs::write(&note_path, content)?;
 
     // Update daily link file (YYYYMMDD.md)
     update_daily_link(&capsa_ref, &date_str, &date_display, &filename, &title)?;
 
-    println!("Created daily note: {}", filename);
-    println!("  in: {}", note_path.display());
+    // Output full path for shell pipeline compatibility
+    println!("{}", note_path.display());
 
     Ok(())
 }
 
+/// Read content from stdin, returns empty string if no data
+fn read_stdin_content() -> io::Result<String> {
+    let mut buffer = String::new();
+    match io::stdin().read_to_string(&mut buffer) {
+        Ok(0) => Ok(String::new()),
+        Ok(_) => Ok(buffer),
+        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(String::new()),
+        Err(e) => Err(e),
+    }
+}
+
 /// Update the daily link file (YYYYMMDD.md) with new note link
 fn update_daily_link(
-    capsa_ref: &CapssaRef,
+    capsa_ref: &CapsaRef,
     date_str: &str,
     date_display: &str,
     filename: &str,

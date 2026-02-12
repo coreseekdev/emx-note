@@ -1,5 +1,4 @@
 use std::io;
-use emx_note::ResolveContext;
 
 pub fn run(_ctx: &emx_note::ResolveContext, caps: String) -> io::Result<()> {
     println!("Setting default capsa to: {}", caps);

@@ -1,0 +1,36 @@
+# Test tag/label commands
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+
+# Create a capsa first
+exec emx-note --home $WORK/.emx-notes -g capssa create test-tag
+stdout 'Created capsa: test-tag'
+
+# Create a test note
+exec emx-note --home $WORK/.emx-notes -c test-tag create --content '# Test Note' test-note.md
+stdout 'Created note'
+
+# Add note to tag
+exec emx-note --home $WORK/.emx-notes -c test-tag tag add important test-note.md
+stdout 'test-note.md'
+stdout '#important'
+
+# List tags
+exec emx-note --home $WORK/.emx-notes -c test-tag tag list
+stdout 'important'
+
+# List notes in tag
+exec emx-note --home $WORK/.emx-notes -c test-tag tag list important
+stdout 'Test Note'
+
+# Verify tag file exists using ls
+exec ls $WORK/.emx-notes/test-tag/
+stdout 'important.md'
+
+# Remove note from tag
+exec emx-note --home $WORK/.emx-notes -c test-tag tag remove important test-note.md
+stdout 'Removed'
+
+# Verify tag file is deleted - list should not contain #important.md
+exec ls $WORK/.emx-notes/test-tag/
+! stdout 'important.md'

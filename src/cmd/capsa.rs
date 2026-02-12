@@ -2,9 +2,9 @@ use std::io;
 use std::fs;
 use emx_note::ResolveContext;
 
-pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapssaCommand) -> io::Result<()> {
+pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapsaCommand) -> io::Result<()> {
     match cmd {
-        emx_note::CapssaCommand::List => {
+        emx_note::CapsaCommand::List => {
             println!("Listing all capsae...");
             let capsas = ctx.list_capsas();
             if capsas.is_empty() {
@@ -15,10 +15,10 @@ pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapssaCommand) -> io::
                 }
             }
         }
-        emx_note::CapssaCommand::Create { name } => {
+        emx_note::CapsaCommand::Create { name } => {
             create_capsa(ctx, &name)?;
         }
-        emx_note::CapssaCommand::Info { name } => {
+        emx_note::CapsaCommand::Info { name } => {
             println!("Capsa info: {}", name);
             if let Some(cap_ref) = ctx.resolve_capsa(&name) {
                 println!("  Path: {}", cap_ref.path.display());
@@ -28,7 +28,7 @@ pub fn run(ctx: &emx_note::ResolveContext, cmd: emx_note::CapssaCommand) -> io::
                 println!("  Exists: false");
             }
         }
-        emx_note::CapssaCommand::Delete { name } => {
+        emx_note::CapsaCommand::Delete { name } => {
             delete_capsa(ctx, &name)?;
         }
     }

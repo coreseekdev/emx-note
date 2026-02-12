@@ -27,38 +27,34 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Open a note in the default application
-    Open {
-        /// Note name or relative path
-        note_name: String,
-    },
-
     /// Create or open today's daily note
     Daily {
         /// Optional title for the daily note
         title: Option<String>,
     },
 
+    /// Create a permanent note (in note/ directory)
+    Note {
+        /// Optional title for the note (defaults to timestamp if not provided)
+        title: Option<String>,
+
+        /// Source of the note (creates in note/{hash}/ subdirectory if provided)
+        #[arg(short = 's', long)]
+        source: Option<String>,
+    },
+
     /// Create a new note
     Create {
         /// Note name (can include path)
-        #[arg(short, long)]
+        note_name: String,
+
+        /// Initial content for the note ("-" to read from stdin, or reads from stdin by default)
+        #[arg(short = 'C', long)]
         content: Option<String>,
 
-        /// Append to existing note
-        #[arg(short, long)]
-        append: bool,
-
         /// Overwrite existing note
-        #[arg(short, long)]
+        #[arg(short = 'W', long)]
         overwrite: bool,
-
-        /// Open note after creating
-        #[arg(short, long)]
-        open: bool,
-
-        /// Title for the note
-        note_name: String,
     },
 
     /// Move/rename a note (updates all links)
@@ -68,10 +64,19 @@ pub enum Command {
 
         /// New note path
         new: String,
+    },
 
-        /// Open after moving
-        #[arg(short, long)]
-        open: bool,
+    /// Copy a note to a new location
+    Copy {
+        /// Source note path
+        source: String,
+
+        /// Destination note path
+        dest: String,
+
+        /// Overwrite destination if exists
+        #[arg(short = 'W', long)]
+        overwrite: bool,
     },
 
     /// Delete a note
@@ -121,11 +126,11 @@ pub enum Command {
 
     /// Manage capsae (note collections)
     #[command(subcommand)]
-    Capssa(CapssaCommand),
+    Capsa(CapsaCommand),
 
     /// Set the default capsa
     SetDefault {
-        /// Capssa name
+        /// Capsa name
         caps: String,
     },
 
@@ -134,6 +139,66 @@ pub enum Command {
         /// Output path only
         #[arg(long)]
         path_only: bool,
+    },
+
+    /// Find and manage orphaned notes (no incoming links)
+    Gc {
+        /// Minimum age in days for notes to be considered for GC
+        #[arg(short, long, default_value = "7")]
+        days: u32,
+
+        /// Actually delete the orphaned notes (default is dry-run)
+        #[arg(short, long)]
+        execute: bool,
+
+        /// Skip confirmation prompt when deleting
+        #[arg(short = 'f', long)]
+        force: bool,
+
+        /// Show verbose output
+        #[arg(short, long)]
+        verbose: bool,
+    },
+
+    /// Manage tags/labels (#xxxx.md files)
+    #[command(subcommand)]
+    Tag(TagCommand),
+
+    /// Alias for tag command
+    #[command(hide = true, subcommand)]
+    Label(TagCommand),
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TagCommand {
+    /// Add a note to a tag
+    Add {
+        /// Tag name (without # prefix)
+        tag: String,
+
+        /// Note path to tag
+        note: String,
+    },
+
+    /// Remove a note from a tag
+    Remove {
+        /// Tag name (without # prefix)
+        tag: String,
+
+        /// Note path to untag
+        note: String,
+    },
+
+    /// List all tags or notes in a tag
+    List {
+        /// Tag name to list notes (optional, lists all tags if not specified)
+        tag: Option<String>,
+    },
+
+    /// Delete a tag file
+    Delete {
+        /// Tag name to delete
+        tag: String,
     },
 }
 
@@ -161,7 +226,7 @@ pub enum FrontMatterAction {
 }
 
 #[derive(Subcommand, Debug)]
-pub enum CapssaCommand {
+pub enum CapsaCommand {
     /// List all capsae
     List,
 
