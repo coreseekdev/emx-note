@@ -1,13 +1,22 @@
-pub mod capsa;
 pub mod cli;
+pub mod commands;
 
-pub use capsa::Capsa;
 pub use cli::{Cli, Command};
 
-/// Default notes directory path
+/// Default notes directory name (relative to home)
 pub const DEFAULT_NOTES_DIR: &str = ".emx-notes";
 
-/// Get the default notes directory path in user's home directory
-pub fn default_notes_path() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|p| p.join(DEFAULT_NOTES_DIR))
+/// Get the notes directory path.
+/// Prefers: --home flag > $EMX_NOTE_HOME > ~/.emx-notes
+pub fn notes_path(home: Option<&str>) -> std::path::PathBuf {
+    if let Some(h) = home {
+        return std::path::PathBuf::from(h);
+    }
+    if let Ok(env) = std::env::var("EMX_NOTE_HOME") {
+        return std::path::PathBuf::from(env);
+    }
+    dirs::home_dir()
+        .unwrap_or_else(|| ".".into())
+        .join(DEFAULT_NOTES_DIR)
 }
+
