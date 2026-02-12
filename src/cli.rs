@@ -34,7 +34,10 @@ pub enum Command {
     },
 
     /// Create or open today's daily note
-    Daily,
+    Daily {
+        /// Optional title for the daily note
+        title: Option<String>,
+    },
 
     /// Create a new note
     Create {

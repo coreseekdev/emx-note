@@ -39,8 +39,13 @@ pub struct ResolveContext {
 impl ResolveContext {
     /// Create a new resolve context
     pub fn new(home: PathBuf, global: bool) -> Self {
-        let agent_name = std::env::var(ENV_AGENT_NAME).ok();
-        let default_override = std::env::var(ENV_NOTE_DEFAULT).ok();
+        // Treat empty strings as None
+        let agent_name = std::env::var(ENV_AGENT_NAME)
+            .ok()
+            .filter(|s| !s.is_empty());
+        let default_override = std::env::var(ENV_NOTE_DEFAULT)
+            .ok()
+            .filter(|s| !s.is_empty());
 
         Self {
             home,

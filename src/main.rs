@@ -8,7 +8,7 @@ fn main() -> std::io::Result<()> {
 
     match cli.command {
         Command::Open { note_name } => cmd::open::run(&ctx, cli.caps.as_deref(), note_name),
-        Command::Daily => cmd::daily::run(&ctx, cli.caps.as_deref()),
+        Command::Daily { title } => cmd::daily::run(&ctx, cli.caps.as_deref(), title),
         Command::Create { note_name, content, append, overwrite, open } => {
             cmd::create::run(&ctx, cli.caps.as_deref(), note_name, content, append, overwrite, open)
         }
