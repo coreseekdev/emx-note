@@ -43,10 +43,6 @@ A `TASK.md` file consists of three main sections:
 
 - [x] [Completed task][task-id]
   metadata-key: value
-
-- [!] [Blocked task][task-id]
-  metadata-key: value
-
 ---
 
 ## Reference Definitions
@@ -57,7 +53,6 @@ A `TASK.md` file consists of three main sections:
 
 **Separator rule**: Horizontal rule (`---`, `___`, etc.) must separate metadata from tasks section.
 **Purpose**: Clear visual boundary between file configuration and actionable content.
-```
 
 ## Task States
 
@@ -145,7 +140,7 @@ Reference definitions are placed at the end of `TASK.md` following Markdown stan
 [session-mgmt]: ./knowledge/session-management.md
 ```
 
-### Reference Naming Convention
+#### Reference Naming Convention
 
 - **Task references**: `task-{short-name}` (e.g., `task-auth`, `task-db-pool`)
 - **Concept references**: `{category}-{name}` (e.g., `jwt-concept`, `db-connection`)
