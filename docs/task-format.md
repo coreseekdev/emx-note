@@ -25,7 +25,9 @@ Minimalist task tracking format using standard Markdown syntax.
 
 ## Tasks
 
-- [ ] [Task description][task-id]
+- [ ] [Task description][task-id] @agent-name
+  - [new wasmtime have break change](./some-file.md)
+  - [task-id-finished-report](./#daily/YYYYMMDD/HHmmss.md)
 - [x] [Completed task][task-id]
 
 ---
@@ -36,4 +38,8 @@ Minimalist task tracking format using standard Markdown syntax.
 [concept-id]: ./path/to/concept-note.md
 ```
 
-**Flat list**: All definitions in one section for easy maintenance.
+**Agent tracking**:
+- `@agent-name` in task marks executing agent
+- Sub-items track execution log and intermediate results
+- Format: sub-items as standard Markdown list
+
