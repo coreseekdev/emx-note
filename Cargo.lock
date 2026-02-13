@@ -257,7 +257,9 @@ dependencies = [
  "emx-testspec",
  "once_cell",
  "pulldown-cmark",
+ "regex",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sha2",
 ]

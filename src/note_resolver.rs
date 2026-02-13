@@ -23,6 +23,93 @@ pub enum ResolvedNote {
     NotFound,
 }
 
+/// Resolve a note and return the path if found, or an error with helpful message
+/// This helper centralizes the error handling logic used across multiple commands
+pub fn resolve_note_or_error(
+    capsa_path: &Path,
+    note_ref: &str,
+    extensions: &[&str],
+) -> io::Result<PathBuf> {
+    let resolved = resolve_note(capsa_path, note_ref, extensions)?;
+
+    match resolved {
+        ResolvedNote::Found(path) => Ok(path),
+        ResolvedNote::Ambiguous(candidates) => {
+            // Print conflict message to stderr
+            eprintln!("Error: Ambiguous note reference '{}'", note_ref);
+            eprintln!("Found {} matching notes:", candidates.len());
+            for (i, path) in candidates.iter().enumerate() {
+                // Get relative path for cleaner output
+                let relative = path
+                    .strip_prefix(capsa_path)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                eprintln!("  {}. {}", i + 1, relative);
+            }
+
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Ambiguous note reference: {} candidates found", candidates.len())
+            ))
+        }
+        ResolvedNote::NotFound => {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Note '{}' not found", note_ref)
+            ))
+        }
+    }
+}
+
+/// Resolve a note with optional force mode for ambiguous references
+/// Returns a vector of paths (single for found/unique, multiple for ambiguous with force)
+/// Used by tag commands that need to handle multiple notes with --force flag
+pub fn resolve_note_with_force(
+    capsa_path: &Path,
+    note_ref: &str,
+    extensions: &[&str],
+    force: bool,
+    force_hint: &str,
+) -> io::Result<Vec<PathBuf>> {
+    let resolved = resolve_note(capsa_path, note_ref, extensions)?;
+
+    match resolved {
+        ResolvedNote::Found(path) => Ok(vec![path]),
+        ResolvedNote::Ambiguous(candidates) => {
+            if !force {
+                // Print conflict message to stderr
+                eprintln!("Error: Ambiguous note reference '{}'", note_ref);
+                eprintln!("Found {} matching notes:", candidates.len());
+                for (i, path) in candidates.iter().enumerate() {
+                    // Get relative path for cleaner output
+                    let relative = path
+                        .strip_prefix(capsa_path)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    eprintln!("  {}. {}", i + 1, relative);
+                }
+                eprintln!("\nUse --force to {} all matching notes.", force_hint);
+
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Ambiguous note reference: {} candidates found", candidates.len())
+                ))
+            } else {
+                // Force mode: return all candidates
+                Ok(candidates)
+            }
+        }
+        ResolvedNote::NotFound => {
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Note '{}' not found", note_ref)
+            ))
+        }
+    }
+}
+
 /// Resolve a note reference to a file path
 pub fn resolve_note(
     capsa_path: &Path,

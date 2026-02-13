@@ -4,7 +4,7 @@ use emx_note::{Cli, Command, ResolveContext, notes_path};
 fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
     let home_path = notes_path(cli.home.as_deref());
-    let ctx = ResolveContext::new(home_path, cli.global);
+    let ctx = ResolveContext::new(home_path, cli.global, cli.json);
 
     match cli.command {
         Command::Daily { title } => cmd::daily::run(&ctx, cli.caps.as_deref(), title),

@@ -37,37 +37,14 @@ fn add_tags(
 ) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Resolve note reference
-    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, emx_note::DEFAULT_EXTENSIONS)?;
-
-    let note_paths = match resolved {
-        emx_note::ResolvedNote::Found(path) => vec![path],
-        emx_note::ResolvedNote::Ambiguous(candidates) => {
-            if !force {
-                eprintln!("Error: Ambiguous note reference '{}'", note_ref);
-                eprintln!("Found {} matching notes:", candidates.len());
-                for (i, path) in candidates.iter().enumerate() {
-                    let relative = path.strip_prefix(&capsa_ref.path)
-                        .unwrap_or(path)
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    eprintln!("  {}. {}", i + 1, relative);
-                }
-                eprintln!("\nUse --force to add tags to all matching notes.");
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("Ambiguous note reference: {} candidates found", candidates.len())
-                ));
-            }
-            candidates
-        }
-        emx_note::ResolvedNote::NotFound => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Note '{}' not found", note_ref)
-            ));
-        }
-    };
+    // Resolve note reference with force support
+    let note_paths = emx_note::resolve_note_with_force(
+        &capsa_ref.path,
+        note_ref,
+        emx_note::DEFAULT_EXTENSIONS,
+        force,
+        "add tags to"
+    )?;
 
     // Add each tag to each note
     for note_path in &note_paths {
@@ -140,37 +117,14 @@ fn remove_tags(
 ) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Resolve note reference
-    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, emx_note::DEFAULT_EXTENSIONS)?;
-
-    let note_paths = match resolved {
-        emx_note::ResolvedNote::Found(path) => vec![path],
-        emx_note::ResolvedNote::Ambiguous(candidates) => {
-            if !force {
-                eprintln!("Error: Ambiguous note reference '{}'", note_ref);
-                eprintln!("Found {} matching notes:", candidates.len());
-                for (i, path) in candidates.iter().enumerate() {
-                    let relative = path.strip_prefix(&capsa_ref.path)
-                        .unwrap_or(path)
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    eprintln!("  {}. {}", i + 1, relative);
-                }
-                eprintln!("\nUse --force to remove tags from all matching notes.");
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("Ambiguous note reference: {} candidates found", candidates.len())
-                ));
-            }
-            candidates
-        }
-        emx_note::ResolvedNote::NotFound => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Note '{}' not found", note_ref)
-            ));
-        }
-    };
+    // Resolve note reference with force support
+    let note_paths = emx_note::resolve_note_with_force(
+        &capsa_ref.path,
+        note_ref,
+        emx_note::DEFAULT_EXTENSIONS,
+        force,
+        "remove tags from"
+    )?;
 
     // Remove each tag from each note
     for note_path in &note_paths {

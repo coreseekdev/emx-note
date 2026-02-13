@@ -34,11 +34,13 @@ pub struct ResolveContext {
     pub agent_name: Option<String>,
     /// The explicitly specified default capsa name (EMX_NOTE_DEFAULT)
     pub default_override: Option<String>,
+    /// Whether to output in JSON format
+    pub json: bool,
 }
 
 impl ResolveContext {
     /// Create a new resolve context
-    pub fn new(home: PathBuf, global: bool) -> Self {
+    pub fn new(home: PathBuf, global: bool, json: bool) -> Self {
         // Treat empty strings as None
         let agent_name = std::env::var(ENV_AGENT_NAME)
             .ok()
@@ -52,6 +54,7 @@ impl ResolveContext {
             global,
             agent_name,
             default_override,
+            json,
         }
     }
 
@@ -216,19 +219,19 @@ mod tests {
         // Priority 1: EMX_NOTE_DEFAULT
         std::env::set_var(ENV_NOTE_DEFAULT, "explicit-default");
         std::env::remove_var(ENV_AGENT_NAME);
-        let ctx = ResolveContext::new("/tmp".into(), false);
+        let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), "explicit-default");
 
         // Priority 2: EMX_AGENT_NAME
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::set_var(ENV_AGENT_NAME, "my-agent");
-        let ctx = ResolveContext::new("/tmp".into(), false);
+        let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), "my-agent");
 
         // Priority 3: .default
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::remove_var(ENV_AGENT_NAME);
-        let ctx = ResolveContext::new("/tmp".into(), false);
+        let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), DEFAULT_CAPSA_NAME);
     }
 
@@ -238,6 +241,7 @@ mod tests {
             global: false,
             agent_name: None,
             default_override: None,
+            json: false,
         }
     }
 
@@ -258,12 +262,14 @@ mod tests {
             global: true,
             agent_name: Some("agent1".to_string()),
             default_override: None,
+            json: false,
         };
         assert_eq!(ctx.apply_agent_prefix("my-notes"), "my-notes");
 
         // Special case: "default" maps to agent name
         let mut ctx = test_context("/tmp");
         ctx.agent_name = Some("agent1".to_string());
+        ctx.json = false;
         assert_eq!(ctx.apply_agent_prefix(".default"), "agent1");
     }
 

@@ -13,33 +13,12 @@ pub fn run(
 ) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Resolve note
-    let resolved = emx_note::resolve_note(&capsa_ref.path, &note_ref, emx_note::DEFAULT_EXTENSIONS)?;
-
-    let note_path = match resolved {
-        emx_note::ResolvedNote::Found(path) => path,
-        emx_note::ResolvedNote::Ambiguous(candidates) => {
-            eprintln!("Error: Ambiguous note reference '{}'", note_ref);
-            eprintln!("Found {} matching notes:", candidates.len());
-            for (i, path) in candidates.iter().enumerate() {
-                let relative = path.strip_prefix(&capsa_ref.path)
-                    .unwrap_or(path)
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                eprintln!("  {}. {}", i + 1, relative);
-            }
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Ambiguous note reference: {} candidates found", candidates.len())
-            ));
-        }
-        emx_note::ResolvedNote::NotFound => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Note '{}' not found", note_ref)
-            ));
-        }
-    };
+    // Resolve note using helper function
+    let note_path = emx_note::resolve_note_or_error(
+        &capsa_ref.path,
+        &note_ref,
+        emx_note::DEFAULT_EXTENSIONS
+    )?;
 
     // Read note content
     let content = fs::read_to_string(&note_path)?;
@@ -74,9 +53,11 @@ pub fn run(
             } else {
                 serde_yaml::Value::Sequence(value.into_iter().map(serde_yaml::Value::String).collect())
             };
-            let updated = set_key(&content, &k, yaml_value)?;
+            let updated = set_key(&content, &k, yaml_value.clone())?;
             fs::write(&note_path, updated)?;
-            eprintln!("Set '{}'", k);
+
+            // Output the value that was set (for confirmation)
+            println!("{}", to_yaml_string(&yaml_value));
         }
     } else {
         // List all frontmatter
@@ -99,7 +80,14 @@ fn extract_frontmatter(content: &str) -> String {
 
     let rest = &content[3..];
     if let Some(end_pos) = rest.find("\n---") {
-        return rest[..end_pos].to_string();
+        let frontmatter = &rest[..end_pos];
+
+        // Check frontmatter size before parsing
+        if frontmatter.len() > emx_note::MAX_FRONTMATTER_SIZE {
+            return String::new();
+        }
+
+        return frontmatter.to_string();
     }
 
     String::new()

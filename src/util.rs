@@ -78,6 +78,8 @@ pub fn secure_path(base: &Path, relative: &str) -> io::Result<PathBuf> {
 pub fn validate_link_target(target: &Path, home: &Path) -> io::Result<PathBuf> {
     // Resolve to absolute path
     let resolved = if target.is_absolute() {
+        // Additional check: block system directories
+        validate_not_system_directory(target)?;
         target.to_path_buf()
     } else {
         home.join(target)
@@ -85,6 +87,9 @@ pub fn validate_link_target(target: &Path, home: &Path) -> io::Result<PathBuf> {
 
     // Canonicalize if exists (use dunce to avoid UNC prefix on Windows)
     let canonical = dunce::canonicalize(&resolved).unwrap_or(resolved.clone());
+
+    // Check if canonical path is a system directory
+    validate_not_system_directory(&canonical)?;
 
     // Check if it's a directory (valid link target)
     if !canonical.is_dir() {
@@ -95,6 +100,66 @@ pub fn validate_link_target(target: &Path, home: &Path) -> io::Result<PathBuf> {
     }
 
     Ok(canonical)
+}
+
+/// Maximum allowed size for frontmatter (in bytes)
+pub const MAX_FRONTMATTER_SIZE: usize = 64 * 1024; // 64KB
+
+/// Validate that path is not a system directory
+fn validate_not_system_directory(path: &Path) -> io::Result<()> {
+    let path_str = path.to_string_lossy().to_lowercase();
+
+    // Unix system directories
+    #[cfg(unix)]
+    {
+        // Block root system directories
+        if path_str == "/" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cannot link to system root directory"
+            ));
+        }
+
+        // Block specific system directories
+        let system_dirs = [
+            "/etc", "/boot", "/sys", "/proc", "/dev", "/bin", "/sbin",
+            "/lib", "/lib32", "/lib64", "/usr/bin", "/usr/sbin", "/usr/lib",
+            "/var", "/root", "/run", "/opt"
+        ];
+
+        for sys_dir in &system_dirs {
+            if path_str == *sys_dir || path_str.starts_with(&format!("{}/", sys_dir)) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Cannot link to system directory: {}", sys_dir)
+                ));
+            }
+        }
+    }
+
+    // Windows system directories
+    #[cfg(windows)]
+    {
+        // Block Windows directories
+        let system_dirs = [
+            "\\windows", "\\windows\\system32", "\\windows\\syswow64",
+            "\\program files", "\\program files (x86)",
+            "\\programdata", "\\system volume information"
+        ];
+
+        for sys_dir in &system_dirs {
+            let sys_dir_lower = sys_dir.to_lowercase().replace('\\', "/");
+            let path_normalized = path_str.replace('\\', "/");
+            if path_normalized.contains(&sys_dir_lower) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Cannot link to Windows system directory")
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Extract title from note content (first H1 heading or filename)

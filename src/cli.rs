@@ -1,11 +1,129 @@
 use clap::{Parser, Subcommand};
 
 /// emx-note - A Zettelkasten-style note management tool
+///
+/// # LLM Agent Quick Reference
+///
+/// ## Basic Notes
+///
+/// ```bash
+/// emx-note note "My Idea"           # Create permanent note
+/// emx-note note                    # Create with timestamp title
+/// emx-note note "Idea" -s "book" # Create in note/{hash}/
+/// emx-note print "Idea"           # Print note content
+/// emx-note resolve "Idea"          # Get file path
+///
+/// # From stdin/heredoc:
+/// emx-note note "Idea" <<EOF
+/// # My Idea
+///
+/// Detailed description here...
+/// EOF
+/// ```
+///
+/// ## Daily Notes
+///
+/// ```bash
+/// emx-note daily                   # Today's daily note
+/// emx-note daily "Meeting Notes"    # With title
+/// emx-note list "#daily"           # List all dates
+///
+/// # From stdin/heredoc:
+/// emx-note daily "Meeting" <<EOF
+/// ## Attendees
+/// - Alice
+/// - Bob
+///
+/// ## Notes
+/// Discussion points...
+/// EOF
+/// ```
+///
+/// ## Tags
+///
+/// ```bash
+/// emx-note tag add "Idea" rust programming
+/// emx-note tag remove "Idea" rust
+/// emx-note tag add "Note" tag --force    # Force: apply to all matches
+/// emx-note list "#rust"                # List notes with #rust tag
+/// emx-note list "#rust" --json         # JSON output for scripting
+/// ```
+///
+/// ## List
+///
+/// ```bash
+/// emx-note list                           # List top-level files in note/
+/// emx-note list "#tag"                    # List tag contents (grouped by date)
+/// emx-note list "#daily"                  # List daily dates
+/// emx-note list "a1b2c3d4e5f6"         # List files in hash directory
+/// emx-note list "20250113"               # List files in daily/YYYYMMDD/
+/// ```
+///
+/// ## Metadata
+///
+/// ```bash
+/// emx-note meta "Idea" status "in-progress"
+/// emx-note meta "Idea" status      # Get metadata value
+/// emx-note meta "Idea" status --delete
+/// ```
+///
+/// ## Capsae (Collections)
+///
+/// ```bash
+/// emx-note capsa list                      # List all capsae
+/// emx-note capsa create "work"            # Create new capsa
+/// emx-note capsa create "blog" --path ~/blog  # Link to external directory
+/// emx-note capsa resolve "work"           # Get capsa path
+/// emx-note default "work"                 # Set default capsa
+/// emx-note default                        # View current default
+/// ```
+///
+/// ## Global Options
+///
+/// ```bash
+/// emx-note --caps work list "#tags"    # Use specific capsa
+/// emx-note --global list "#tags"        # Bypass agent prefixing
+/// emx-note --home ~/notes list         # Use custom notes directory
+/// ```
+///
+/// ## Environment Variables
+///
+/// - `EMX_NOTE_HOME`: Base directory for all capsae (default: ~/.emx-notes)
+/// - `EMX_NOTE_DEFAULT`: Default capsa name (overrides .default)
+/// - `EMX_AGENT_NAME`: Agent name for prefixing (e.g., "agent1" → "agent1-work")
+///
+/// ## Agent Prefixing
+///
+/// When `EMX_AGENT_NAME` is set, capsa names are automatically prefixed:
+/// - "my-notes" becomes "agent1-my-notes"
+/// - ".default" becomes "agent1" (agent's personal default)
+/// Use `--global` flag to bypass prefixing for shared capsae
+///
+/// ## Scripting/JSON Mode
+///
+/// ```bash
+/// emx-note --json list "#tag"      # Date-grouped JSON:
+///                                  # {"2025-01-15": ["20250115/hello", "note"]}
+/// emx-note --json list "#daily"    # Flat JSON array:
+///                                  # ["20250101", "20250213"]
+/// emx-note --json capsa list       # List capsae as JSON:
+///                                  # ["default", "work", "personal"]
+/// ```
+///
+/// ## Note Resolution
+///
+/// Notes can be referenced by:
+/// - Exact name: "My Note"
+/// - Timestamp: "20250113120000" (daily: "20250113/120000")
+/// - Prefix: "My" (first match starting with "My")
+/// - Hash: "a1b2c3d4e5f6" (source hash directory)
+/// - Relative path: "daily/20250113/120000-meeting.md"
+///
 #[derive(Parser, Debug)]
 #[command(name = "emx-note")]
 #[command(author = "nzinfo <li.monan@gmail.com>")]
 #[command(version = "0.1.0")]
-#[command(about = "A Zettelkasten-style note management tool", long_about = None)]
+#[command(about = "A Zettelkasten-style note management tool")]
 pub struct Cli {
     /// Home directory for all notes (default: ~/.emx-notes or $EMX_NOTE_HOME)
     #[arg(long, value_name = "PATH")]
@@ -19,6 +137,10 @@ pub struct Cli {
     #[arg(short, long, alias = "vault", global = true, value_name = "CAPSA")]
     pub caps: Option<String>,
 
+    /// Output in JSON format (for scripting/LLM usage)
+    #[arg(short = 'j', long, global = true)]
+    pub json: bool,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -27,13 +149,13 @@ pub struct Cli {
 pub enum Command {
     /// Create or open today's daily note
     Daily {
-        /// Optional title for the daily note
+        /// Optional title for daily note
         title: Option<String>,
     },
 
     /// Create a permanent note (in note/ directory)
     Note {
-        /// Optional title for the note (defaults to timestamp if not provided)
+        /// Optional title for note (defaults to timestamp if not provided)
         title: Option<String>,
 
         /// Source of the note (creates in note/{hash}/ subdirectory if provided)
