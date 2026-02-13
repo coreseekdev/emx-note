@@ -13,11 +13,8 @@ pub fn run(
 ) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Default extensions to search
-    let extensions = vec![".md", ".mx", ".emx"];
-
     // Resolve note
-    let resolved = emx_note::resolve_note(&capsa_ref.path, &note_ref, &extensions.as_slice())?;
+    let resolved = emx_note::resolve_note(&capsa_ref.path, &note_ref, emx_note::DEFAULT_EXTENSIONS)?;
 
     let note_path = match resolved {
         emx_note::ResolvedNote::Found(path) => path,

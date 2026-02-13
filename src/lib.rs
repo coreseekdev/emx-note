@@ -11,6 +11,9 @@ pub use note_resolver::{ResolvedNote, resolve_note};
 /// Default notes directory name (relative to home)
 pub const DEFAULT_NOTES_DIR: &str = ".emx-notes";
 
+/// Default file extensions for notes
+pub const DEFAULT_EXTENSIONS: &[&str] = &[".md", ".mx", ".emx"];
+
 /// Get the notes directory path.
 /// Prefers: --home flag > $EMX_NOTE_HOME > ~/.emx-notes
 pub fn notes_path(home: Option<&str>) -> std::path::PathBuf {

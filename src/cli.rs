@@ -90,6 +90,8 @@ pub enum Command {
     },
 
     /// Find and manage orphaned notes (no incoming links)
+    /// NOTE: This command is not yet fully implemented
+    #[command(hide = true)]
     Gc {
         /// Minimum age in days for notes to be considered for GC
         #[arg(short, long, default_value = "7")]

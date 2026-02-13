@@ -38,8 +38,7 @@ fn add_tags(
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
     // Resolve note reference
-    let extensions = vec![".md", ".mx", ".emx"];
-    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, &extensions)?;
+    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, emx_note::DEFAULT_EXTENSIONS)?;
 
     let note_paths = match resolved {
         emx_note::ResolvedNote::Found(path) => vec![path],
@@ -142,8 +141,7 @@ fn remove_tags(
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
     // Resolve note reference
-    let extensions = vec![".md", ".mx", ".emx"];
-    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, &extensions)?;
+    let resolved = emx_note::resolve_note(&capsa_ref.path, note_ref, emx_note::DEFAULT_EXTENSIONS)?;
 
     let note_paths = match resolved {
         emx_note::ResolvedNote::Found(path) => vec![path],

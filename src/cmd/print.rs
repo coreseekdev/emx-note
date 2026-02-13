@@ -6,11 +6,8 @@ use std::io;
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, note_name: String) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
 
-    // Default extensions to search
-    let extensions = vec![".md", ".mx", ".emx"];
-
     // Resolve note using new resolver
-    let resolved = emx_note::resolve_note(&capsa_ref.path, &note_name, &extensions.as_slice())?;
+    let resolved = emx_note::resolve_note(&capsa_ref.path, &note_name, emx_note::DEFAULT_EXTENSIONS)?;
 
     match resolved {
         emx_note::ResolvedNote::Found(path) => {
