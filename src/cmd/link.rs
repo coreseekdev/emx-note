@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
@@ -40,15 +40,24 @@ pub fn run(
 
     match cmd {
         emx_note::cli::LinkCommand::Check { ref path } => {
-            let scan_path = path.as_deref().unwrap_or(&capsa_ref.path);
+            let scan_path = match path {
+                Some(ref p) => Path::new(p),
+                None => &capsa_ref.path,
+            };
             check(&capsa_ref.path, scan_path)
         }
         emx_note::cli::LinkCommand::List { ref path } => {
-            let scan_path = path.as_deref().unwrap_or(&capsa_ref.path);
+            let scan_path = match path {
+                Some(ref p) => Path::new(p),
+                None => &capsa_ref.path,
+            };
             list_links(&capsa_ref.path, scan_path)
         }
         emx_note::cli::LinkCommand::Orphans { ref path } => {
-            let scan_path = path.as_deref().unwrap_or(&capsa_ref.path);
+            let scan_path = match path {
+                Some(ref p) => Path::new(p),
+                None => &capsa_ref.path,
+            };
             find_orphans(&capsa_ref.path, scan_path)
         }
     }
@@ -103,28 +112,29 @@ fn find_orphans(root: &Path, scan_path: &Path) -> io::Result<()> {
     let result = scan_dir(scan_path)?;
 
     // Build a set of all linked targets
-    let linked_targets: HashSet<PathBuf> = result.links.iter()
-        .filter(|l| !l.broken)
-        .map(|l| scan_path.join(&l.target))
-        .flat_map(|target| {
-            // If target is a directory, add all .md files in it
-            if target.is_dir() {
-                fs::read_dir(&target).ok().and_then(|entries| {
-                    Some(entries.filter_map(|e| e.ok())
-                        .filter_map(|e| e.path().extension())
-                        .filter(|ext| ext == "md" || ext == "mx" || ext == "emx")
-                        .map(|p| p.to_path_buf()))
-                })
-            } else {
-                // Single file
-                Some(vec![target.clone()])
+    let mut linked_targets: HashSet<PathBuf> = HashSet::new();
+    for link in result.links.iter().filter(|l| !l.broken) {
+        let target = scan_path.join(&link.target);
+        if target.is_dir() {
+            // Add all .md files in directory
+            if let Ok(entries) = fs::read_dir(&target) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        if ext == "md" || ext == "mx" || ext == "emx" {
+                            linked_targets.insert(path);
+                        }
+                    }
+                }
             }
-        })
-        .collect();
+        } else {
+            linked_targets.insert(target);
+        }
+    }
 
     // Find orphans (files that exist but are not in linked_targets)
     let mut orphans: Vec<_> = result.sources.iter()
-        .filter(|source| !linked_targets.contains(source))
+        .filter(|source| !linked_targets.contains(*source))
         .collect();
 
     orphans.sort_by(|a, b| a.cmp(b));
@@ -149,8 +159,9 @@ fn scan_dir(scan_path: &Path) -> io::Result<ScanResult> {
 
     // Walk through directory looking for .md, .mx, .emx files
     for entry in fs::read_dir(scan_path).map_err(|e| {
-        format!("Failed to read directory '{}': {}", scan_path.display(), e)
+        io::Error::new(io::ErrorKind::NotFound, format!("Failed to read directory '{}': {}", scan_path.display(), e))
     })? {
+        let entry = entry?;
         let entry_path = entry.path();
         let ext = entry_path.extension().and_then(|s| s.to_str());
 
@@ -168,7 +179,7 @@ fn scan_dir(scan_path: &Path) -> io::Result<ScanResult> {
 
         // Parse markdown content to extract links
         let content = fs::read_to_string(&entry_path).map_err(|e| {
-            format!("Failed to read '{}': {}", entry_path.display(), e)
+            io::Error::new(io::ErrorKind::Other, format!("Failed to read '{}': {}", entry_path.display(), e))
         })?;
 
         let root_relative = entry_path.strip_prefix(scan_path).unwrap_or(&entry_path);
@@ -190,10 +201,6 @@ fn scan_dir(scan_path: &Path) -> io::Result<ScanResult> {
 fn extract_links(content: &str) -> Vec<LinkInfo> {
     let mut links = Vec::new();
     let mut current_line = 1;
-    let mut current_link_start: Option<usize> = None;
-    let mut link_text = String::new();
-    let mut in_code_block = false;
-    let mut in_link = false;
 
     let parser = Parser::new(content);
 
@@ -207,38 +214,16 @@ fn extract_links(content: &str) -> Vec<LinkInfo> {
             => {
                 current_line += 1;
             }
-            Event::Start(Tag::CodeBlock(_)) => {
-                in_code_block = true;
-            }
-            Event::End(TagEnd::CodeBlock) => {
-                in_code_block = false;
-            }
-            Event::Start(Tag::Link { .. }) => {
-                in_link = true;
-                current_link_start = Some(current_line);
-            }
-            Event::End(TagEnd::Link) => {
-                in_link = false;
-            }
-            Event::Text(text) | Event::Code(text) => {
-                if in_code_block {
-                    link_text.clear();
-                    continue; // Skip links in code blocks
-                }
-
-                link_text.push_str(&text);
-            }
             Event::Start(Tag::Link { dest_url, .. }) => {
                 // Inline link [text](url)
                 let url = dest_url.to_string();
-                let start_line = current_link_start.unwrap_or(current_line);
 
                 // Only include local file links
                 if !url.contains("://") && !url.starts_with("mailto:") && !url.starts_with('#') {
                     links.push(LinkInfo {
                         source: PathBuf::new(), // Will be set by caller
-                        line: start_line,
-                        target: url.clone(),
+                        line: current_line,
+                        target: url,
                         broken: false,
                     });
                 }
