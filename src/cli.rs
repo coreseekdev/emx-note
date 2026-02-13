@@ -235,6 +235,34 @@ pub enum Command {
     /// Manage tags (#xxxx.md files)
     #[command(subcommand)]
     Tag(TagCommand),
+
+    /// Check and manage links between notes
+    #[command(subcommand)]
+    Link(LinkCommand),
+}
+
+#[derive(Subcommand, Debug)]
+pub enum LinkCommand {
+    /// Check for broken local links
+    Check {
+        /// Path to check (default: current capsa root)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+
+    /// List all local links
+    List {
+        /// Path to scan (default: current capsa root)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+
+    /// Find orphaned files (not linked by any other file)
+    Orphans {
+        /// Path to scan (default: current capsa root)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]

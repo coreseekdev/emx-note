@@ -3,7 +3,7 @@ pub mod resolve;
 pub mod util;
 pub mod note_resolver;
 
-pub use cli::{Cli, Command, CapsaCommand, TagCommand};
+pub use cli::{Cli, Command, CapsaCommand, TagCommand, LinkCommand};
 pub use resolve::{ResolveContext, CapsaRef, DEFAULT_CAPSA_NAME};
 pub use util::{secure_path, validate_link_target, extract_note_title, slugify, hash_source, abbreviate_hash, MAX_FRONTMATTER_SIZE};
 pub use note_resolver::{ResolvedNote, resolve_note, resolve_note_or_error, resolve_note_with_force};

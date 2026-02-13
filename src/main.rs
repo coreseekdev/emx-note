@@ -23,6 +23,7 @@ fn main() -> std::io::Result<()> {
             cmd::gc::run(&ctx, cli.caps.as_deref(), days, execute, force, verbose)
         }
         Command::Tag(tag_cmd) => cmd::tag::run(&ctx, cli.caps.as_deref(), tag_cmd),
+        Command::Link(link_cmd) => cmd::link::run(&ctx, cli.caps.as_deref(), link_cmd),
     }
 }
 
@@ -37,5 +38,6 @@ mod cmd {
     pub mod default;
     pub mod tag;
     pub mod gc;
+    pub mod link;
     pub mod resolve;
 }
