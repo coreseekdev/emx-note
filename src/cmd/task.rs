@@ -509,11 +509,6 @@ fn cmd_take(
         save_task_content(capsa_path, &new_content)?;
     }
 
-    if let Some(ref a) = agent_marker {
-        eprintln!("Took {} as {}", task_id, a);
-    } else {
-        eprintln!("Took {}", task_id);
-    }
     println!("{}", task_id);
     Ok(())
 }
@@ -583,10 +578,10 @@ fn cmd_comment(
         let new_content = apply_edits(&content, edits)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
         save_task_content(capsa_path, &new_content)?;
-        eprintln!("Added comment to {}", task_id);
     }
 
-    Ok(())
+    // Show log after adding comment
+    cmd_log(capsa_path, task_id)
 }
 
 /// Release task(s)
@@ -691,7 +686,7 @@ fn cmd_release(
     }
 
     for task_id in task_ids {
-        eprintln!("Released {}", task_id);
+        println!("{}", task_id);
     }
     Ok(())
 }
