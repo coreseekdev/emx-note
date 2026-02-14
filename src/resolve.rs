@@ -97,22 +97,41 @@ impl ResolveContext {
     /// Returns None if the capsa doesn't exist
     pub fn resolve_capsa(&self, name: &str) -> Option<CapsaRef> {
         let prefixed_name = self.apply_agent_prefix(name);
+
+        // Try prefixed name first
+        if let Some(capsa) = self.try_resolve_capsa(&prefixed_name, name) {
+            return Some(capsa);
+        }
+
+        // If prefixed name was different and not found, try unprefixed name as fallback
+        // This allows agents to access globally created capsas
+        if prefixed_name != name {
+            if let Some(capsa) = self.try_resolve_capsa(name, name) {
+                return Some(capsa);
+            }
+        }
+
+        None
+    }
+
+    /// Helper to try resolving a specific capsa name
+    fn try_resolve_capsa(&self, resolved_name: &str, original_name: &str) -> Option<CapsaRef> {
         let capsas_path = &self.home;
 
         // Check if it's a link file
-        let link_path = capsas_path.join(&prefixed_name);
+        let link_path = capsas_path.join(resolved_name);
         if link_path.is_file() {
-            return self.resolve_link(&link_path, &prefixed_name);
+            return self.resolve_link(&link_path, resolved_name);
         }
 
         // Check if it's a directory
         let dir_path = link_path;
         if dir_path.is_dir() {
             return Some(CapsaRef {
-                name: prefixed_name.clone(),
+                name: resolved_name.to_string(),
                 path: dir_path.clone(),
                 is_link: false,
-                is_default: name == DEFAULT_CAPSA_NAME,
+                is_default: original_name == DEFAULT_CAPSA_NAME,
             });
         }
 

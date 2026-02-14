@@ -239,6 +239,10 @@ pub enum Command {
     /// Check and manage links between notes
     #[command(subcommand)]
     Link(LinkCommand),
+
+    /// Manage tasks in TASK.md
+    #[command(subcommand)]
+    Task(TaskCommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -314,5 +318,100 @@ pub enum CapsaCommand {
     Resolve {
         /// Name of the capsa to resolve
         name: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TaskCommand {
+    /// Add a new task (auto-increment ID)
+    Add {
+        /// Note reference (timestamp, date/prefix, or slug)
+        node_ref: String,
+    },
+
+    /// Take ownership of a task
+    Take {
+        /// Task ID (e.g., task-01)
+        task_id: String,
+
+        /// Task description (optional, defaults to note's title)
+        #[arg(long)]
+        title: Option<String>,
+
+        /// Target header in body section (optional)
+        #[arg(long)]
+        header: Option<String>,
+
+        /// Preview result without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Add comment to task
+    Comment {
+        /// Task ID (e.g., task-01)
+        task_id: String,
+
+        /// Comment message
+        message: String,
+
+        /// Attach git commit hash
+        #[arg(long)]
+        git: Option<String>,
+
+        /// Preview result without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Release task ownership
+    Release {
+        /// Task IDs to release
+        #[arg(required = true)]
+        task_ids: Vec<String>,
+
+        /// Mark task(s) as done before release
+        #[arg(long)]
+        done: bool,
+
+        /// Force release even if not owner (single task only)
+        #[arg(long)]
+        force: bool,
+
+        /// Preview result without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// List tasks by status
+    List {
+        /// Status filter: backlog, doing, done, all (default: all)
+        status: Option<String>,
+
+        /// Output only task IDs, one per line
+        #[arg(long)]
+        oneline: bool,
+
+        /// Filter by owner (@agent-name or "(none)")
+        #[arg(long)]
+        owner: Option<String>,
+    },
+
+    /// Show task details
+    Show {
+        /// Task ID (e.g., task-01)
+        task_id: String,
+    },
+
+    /// Show execution log for a task
+    Log {
+        /// Task ID (e.g., task-01)
+        task_id: String,
+    },
+
+    /// Find tasks by note reference
+    Find {
+        /// Note reference to search for
+        node_ref: String,
     },
 }

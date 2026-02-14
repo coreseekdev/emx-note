@@ -1,0 +1,34 @@
+# Test task add command
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=
+env EMX_TASK_TIMESTAMP="2026-02-14 14:30"
+
+# Setup: create capsa and a daily note
+exec emx-note --home $WORK/.emx-notes -g capsa create test-task
+stdout '.emx-notes/test-task'
+exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note"
+stdout '#daily/'
+
+# Add first task - should create TASK.md and output task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task add 143000
+stdout 'task-01'
+
+# Verify TASK.md was created with correct structure
+exists $WORK/.emx-notes/test-task/TASK.md
+cmp $WORK/.emx-notes/test-task/TASK.md <<EOF
+---
+PREFIX: task-
+---
+
+---
+
+[task-01]: 143000
+EOF
+
+# Add second task with same ref - should output task-01 (already exists)
+exec emx-note --home $WORK/.emx-notes -c test-task task add 143000
+stdout 'task-01'
+
+# Error: node_ref not found
+! exec emx-note --home $WORK/.emx-notes -c test-task task add nonexistent-ref
+stderr 'not found'

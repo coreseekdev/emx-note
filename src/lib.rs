@@ -1,9 +1,17 @@
 pub mod cli;
+pub mod edit;
+pub mod markdown;
 pub mod resolve;
 pub mod util;
 pub mod note_resolver;
 
-pub use cli::{Cli, Command, CapsaCommand, TagCommand, LinkCommand};
+pub use cli::{Cli, Command, CapsaCommand, TagCommand, LinkCommand, TaskCommand};
+pub use edit::{EditOp, ValidationError, apply_edits};
+pub use markdown::{
+    MarkdownHeading, MarkdownLink,
+    extract_references, extract_headings, extract_links,
+    has_reference, get_reference_dest, find_heading_line, extract_frontmatter_prefix,
+};
 pub use resolve::{ResolveContext, CapsaRef, DEFAULT_CAPSA_NAME};
 pub use util::{secure_path, validate_link_target, extract_note_title, slugify, hash_source, abbreviate_hash, MAX_FRONTMATTER_SIZE};
 pub use note_resolver::{ResolvedNote, resolve_note, resolve_note_or_error, resolve_note_with_force};

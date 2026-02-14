@@ -2,13 +2,25 @@
 
 use std::io::{self, Write, Read};
 use std::fs::{self, OpenOptions};
-use chrono::Local;
+use chrono::{Local, DateTime, NaiveDateTime, TimeZone};
 use emx_note::CapsaRef;
 use emx_note::util;
 
+/// Get current timestamp, allowing override via EMX_TASK_TIMESTAMP for testing
+fn get_timestamp() -> DateTime<Local> {
+    if let Ok(ts) = std::env::var("EMX_TASK_TIMESTAMP") {
+        // Parse "YYYY-MM-DD HH:MM" format
+        if let Ok(naive) = NaiveDateTime::parse_from_str(&ts, "%Y-%m-%d %H:%M") {
+            // Use from_local_datetime to treat the input as local time, not UTC
+            return Local.from_local_datetime(&naive).single().unwrap_or_else(|| Local::now());
+        }
+    }
+    Local::now()
+}
+
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<String>) -> io::Result<()> {
     let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-    let now = Local::now();
+    let now = get_timestamp();
     let date_str = now.format("%Y%m%d").to_string();
     let time_str = now.format("%H%M%S").to_string();
     let date_display = now.format("%Y-%m-%d").to_string();

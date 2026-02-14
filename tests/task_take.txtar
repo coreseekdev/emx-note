@@ -1,0 +1,61 @@
+# Test task take command
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=agent-1
+env EMX_TASK_TIMESTAMP="2026-02-14 10:00"
+
+# Setup: create capsa and add tasks
+exec emx-note --home $WORK/.emx-notes -g capsa create test-task
+exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note"
+exec emx-note --home $WORK/.emx-notes -c test-task task add 100000
+stdout 'task-01'
+
+# Take task with title and header
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Implement feature" --header "## Backend"
+stdout 'task-01'
+
+# Verify task moved to body section
+cmp $WORK/.emx-notes/test-task/TASK.md <<EOF
+---
+PREFIX: task-
+---
+
+## Backend
+
+- [ ] [Implement feature][task-01] @agent-1
+
+---
+
+[task-01]: 100000
+EOF
+
+# Error: take already taken task
+! exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+stderr 'already taken'
+
+# Release task
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-01
+
+# Change agent and take again
+env EMX_AGENT_NAME=agent-2
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+stdout 'task-01'
+
+# Verify new agent marker
+grep '@agent-2' $WORK/.emx-notes/test-task/TASK.md
+
+# Error: task not found
+! exec emx-note --home $WORK/.emx-notes -c test-task task take task-99
+stderr 'not found'
+
+# Error: header not found
+env EMX_TASK_TIMESTAMP="2026-02-14 15:00"
+exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 2"
+exec emx-note --home $WORK/.emx-notes -c test-task task add 150000
+! exec emx-note --home $WORK/.emx-notes -c test-task task take task-02 --header "## NonExistent"
+stderr 'not found'
+
+# Test take without agent (no @marker)
+env EMX_AGENT_NAME=
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+grep '\[Implement feature\]\[task-01\]$' $WORK/.emx-notes/test-task/TASK.md

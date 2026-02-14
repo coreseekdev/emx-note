@@ -1,0 +1,61 @@
+# Test task release command
+env EMX_NOTE_HOME=$WORK/.emx-notes
+env EMX_AGENT_NAME=agent-1
+env EMX_TASK_TIMESTAMP="2026-02-14 10:00"
+
+# Setup: create tasks and take them
+exec emx-note --home $WORK/.emx-notes -g capsa create test-task
+exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note"
+exec emx-note --home $WORK/.emx-notes -c test-task task add 100000
+
+env EMX_TASK_TIMESTAMP="2026-02-14 15:00"
+exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 2"
+exec emx-note --home $WORK/.emx-notes -c test-task task add 150000
+
+env EMX_TASK_TIMESTAMP="2026-02-14 10:00"
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Task one"
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-02 --title "Task two"
+
+# Release single task (incomplete)
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-01
+
+# Verify @agent removed, still [ ]
+exec emx-note --home $WORK/.emx-notes -c test-task task show task-01
+! stdout '@agent'
+stdout 'doing'
+
+# Release with --done
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-02 --done
+
+# Verify @agent removed and [x]
+exec emx-note --home $WORK/.emx-notes -c test-task task show task-02
+stdout 'done'
+! stdout '@agent'
+
+# Error: release task with no owner
+! exec emx-note --home $WORK/.emx-notes -c test-task task release task-01
+stderr 'no owner'
+
+# Setup for batch release
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-02
+
+# Batch release multiple tasks
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-01 task-02 --done
+
+# Verify both released
+exec emx-note --home $WORK/.emx-notes -c test-task task list done
+stdout 'task-01'
+stdout 'task-02'
+
+# Error: --force with multiple tasks
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task take task-02
+! exec emx-note --home $WORK/.emx-notes -c test-task task release task-01 task-02 --force
+stderr 'single task'
+
+# --force works with single task
+exec emx-note --home $WORK/.emx-notes -c test-task task release task-01 --force
+exec emx-note --home $WORK/.emx-notes -c test-task task show task-01
+stdout 'doing'
+! stdout '@agent'

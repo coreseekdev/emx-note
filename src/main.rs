@@ -24,6 +24,7 @@ fn main() -> std::io::Result<()> {
         }
         Command::Tag(tag_cmd) => cmd::tag::run(&ctx, cli.caps.as_deref(), tag_cmd),
         Command::Link(link_cmd) => cmd::link::run(&ctx, cli.caps.as_deref(), &link_cmd),
+        Command::Task(task_cmd) => cmd::task::run(&ctx, cli.caps.as_deref(), task_cmd),
     }
 }
 
@@ -40,4 +41,5 @@ mod cmd {
     pub mod gc;
     pub mod link;
     pub mod resolve;
+    pub mod task;
 }

@@ -267,6 +267,7 @@ dependencies = [
 [[package]]
 name = "emx-testspec"
 version = "0.1.0"
+source = "git+https://github.com/coreseekdev/emx-testspec#a770f87f588f3e5e6a6804bb18826d14d4760fef"
 dependencies = [
  "anyhow",
  "clap",
@@ -279,7 +280,7 @@ dependencies = [
 [[package]]
 name = "emx-txtar"
 version = "0.1.0"
-source = "git+https://github.com/coreseekdev/emx-txtar#27552e05ef0e84c6e93a0d3aaffd6862753becf9"
+source = "git+https://github.com/coreseekdev/emx-txtar#9b50c37b08049f1c3e5d51fc2d19a1597e276211"
 dependencies = [
  "anyhow",
  "base64",

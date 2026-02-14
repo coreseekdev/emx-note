@@ -19,7 +19,7 @@ serde_yaml = "0.9"
 sha2 = "0.10"
 
 [dev-dependencies]
-emx-testspec = { path = "../emx-testspec" }
+emx-testspec = { git = "https://github.com/coreseekdev/emx-testspec" }
 
 [lib]
 name = "emx_note"
