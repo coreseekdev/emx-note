@@ -611,9 +611,9 @@ fn cmd_release(
     force: bool,
     dry_run: bool,
 ) -> io::Result<()> {
-    // If no agent name set, behave like log for single task
+    // If no agent name set and not marking done, behave like log for single task
     let agent_marker = get_agent_name();
-    if agent_marker.is_none() && task_ids.len() == 1 {
+    if agent_marker.is_none() && !done && task_ids.len() == 1 {
         return cmd_log(capsa_path, &task_ids[0]);
     }
 
@@ -655,8 +655,9 @@ fn cmd_release(
             io::Error::new(io::ErrorKind::NotFound, format!("Task '{}' not found", task_id))
         })?;
 
-        // Skip if no owner (idempotent - already released) unless --force
-        if !force && task.owner.is_none() {
+        // Skip if no owner (idempotent - already released) unless --force or --done
+        // With --done, anyone can mark as done (public owned)
+        if !force && !done && task.owner.is_none() {
             continue;
         }
 
@@ -666,7 +667,8 @@ fn cmd_release(
             prefix: "TASK-".to_string(),
         };
 
-        if let Some((_, task_line)) = current_reader.find_task_entry_line(task_id) {
+        if let Some((line_num, task_line)) = current_reader.find_task_entry_line(task_id) {
+            // Task is in body section - update existing entry
             // task_line is the unique source locator (contains unique task-id like [TASK-01])
             // Step 1: Remove owner from the end
             let updated = if let Some(at_pos) = task_line.find('@') {
@@ -696,7 +698,56 @@ fn cmd_release(
             };
 
             // Step 3: Use EditOp::replace with the unique source (task_line)
-            let edits = vec![EditOp::replace(task_line, &final_line)];
+            let mut edits = vec![EditOp::replace(task_line, &final_line)];
+
+            // Add completion comment if --done and no agent
+            if done && agent_marker.is_none() {
+                let timestamp = get_timestamp();
+                let comment = format!("  - {} Completed by @anonymous", timestamp);
+                // Find insert point after the task line
+                let lines: Vec<&str> = current_content.lines().collect();
+                let mut insert_at = line_num + 1;
+                for (i, line) in lines.iter().enumerate().skip(line_num + 1) {
+                    if line.trim().starts_with("  - ") {
+                        insert_at = i + 1;
+                    } else if line.trim().starts_with("- [") || (!line.trim().is_empty() && !line.trim().starts_with("  ")) {
+                        break;
+                    }
+                }
+                edits.push(EditOp::insert_at_line(insert_at, comment));
+            }
+
+            current_content = apply_edits(&current_content, edits)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+            released_count += 1;
+        } else if done {
+            // Task is in backlog - create new entry in body with [x] checkbox
+            let task_title = task.title.as_ref().unwrap_or(&task.node_ref);
+            let task_entry = format!("- [x] [{}][{}]", task_title, task_id);
+
+            let (insert_point, needs_header) = current_reader.find_body_insert_point(None)
+                .unwrap_or((0, false));
+
+            let mut edits = Vec::new();
+            let lines_inserted = if needs_header {
+                let header_text = "## Done\n\n".to_string();
+                edits.push(EditOp::insert_at_line(insert_point, format!("{}{}", header_text, task_entry)));
+                3
+            } else {
+                edits.push(EditOp::insert_at_line(insert_point, task_entry.clone()));
+                1
+            };
+
+            // Add blank line after task entry
+            edits.push(EditOp::insert_at_line(insert_point + lines_inserted, String::new()));
+
+            // Add completion comment if no agent
+            if agent_marker.is_none() {
+                let timestamp = get_timestamp();
+                let comment = format!("  - {} Completed by @anonymous", timestamp);
+                edits.push(EditOp::insert_at_line(insert_point + lines_inserted + 1, comment));
+            }
+
             current_content = apply_edits(&current_content, edits)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
             released_count += 1;
