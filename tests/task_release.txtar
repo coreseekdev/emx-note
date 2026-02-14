@@ -32,9 +32,8 @@ exec emx-note --home $WORK/.emx-notes -c test-task task show TASK-02
 stdout 'done'
 ! stdout '@agent'
 
-# Error: release task with no owner
-! exec emx-note --home $WORK/.emx-notes -c test-task task release TASK-01
-stderr 'no owner'
+# Idempotent: release task with no owner (no error, just skipped)
+exec emx-note --home $WORK/.emx-notes -c test-task task release TASK-01
 
 # Setup for batch release
 exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01

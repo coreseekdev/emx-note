@@ -432,17 +432,19 @@ fn cmd_take(
         io::Error::new(io::ErrorKind::NotFound, format!("Task '{}' not found", task_id))
     })?;
 
-    // Check if already taken
-    if let Some(ref owner) = task.owner {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("Task '{}' already taken by {}\nHint: Use 'task release {}' if you are {}, or wait for release",
-                    task_id, owner, task_id, owner)
-        ));
-    }
-
-    // Get agent name
+    // Get agent name first (needed for ownership check)
     let agent_marker = get_agent_name();
+
+    // Check if already taken (only when agent name is set)
+    if agent_marker.is_some() {
+        if let Some(ref owner) = task.owner {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Task '{}' already taken by {}\nHint: Use 'task release {}' if you are {}, or wait for release",
+                        task_id, owner, task_id, owner)
+            ));
+        }
+    }
 
     // Determine title
     let task_title = title.map(|s| s.to_string())
@@ -470,15 +472,32 @@ fn cmd_take(
 
     // Check if task already in body
     if let Some((_line_num, existing_line)) = reader.find_task_entry_line(task_id) {
-        // Update existing entry (just add owner if needed)
-        if !existing_line.contains('@') {
+        // Update existing entry based on agent_marker
+        let updated_line = if let Some(at_pos) = existing_line.find('@') {
+            // Has owner marker
             if let Some(ref a) = agent_marker {
-                let updated_line = format!("{} {}", existing_line.trim_end(), a);
-                let edits = vec![EditOp::replace(&existing_line, &updated_line)];
-                let new_content = apply_edits(&content, edits)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-                save_task_content(capsa_path, &new_content)?;
+                // Replace with new owner
+                format!("{} {}", existing_line[..at_pos].trim_end(), a)
+            } else {
+                // Remove owner
+                existing_line[..at_pos].trim_end().to_string()
             }
+        } else {
+            // No owner marker
+            if let Some(ref a) = agent_marker {
+                // Add owner
+                format!("{} {}", existing_line.trim_end(), a)
+            } else {
+                // No change needed
+                existing_line.clone()
+            }
+        };
+
+        if updated_line != existing_line {
+            let edits = vec![EditOp::replace(&existing_line, &updated_line)];
+            let new_content = apply_edits(&content, edits)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+            save_task_content(capsa_path, &new_content)?;
         }
     } else {
         // Insert new task entry
@@ -592,6 +611,12 @@ fn cmd_release(
     force: bool,
     dry_run: bool,
 ) -> io::Result<()> {
+    // If no agent name set, behave like log for single task
+    let agent_marker = get_agent_name();
+    if agent_marker.is_none() && task_ids.len() == 1 {
+        return cmd_log(capsa_path, &task_ids[0]);
+    }
+
     // Check --force with multiple tasks
     if force && task_ids.len() > 1 {
         return Err(io::Error::new(
@@ -630,12 +655,9 @@ fn cmd_release(
             io::Error::new(io::ErrorKind::NotFound, format!("Task '{}' not found", task_id))
         })?;
 
-        // Check ownership unless --force
+        // Skip if no owner (idempotent - already released) unless --force
         if !force && task.owner.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Task '{}' has no owner to release", task_id)
-            ));
+            continue;
         }
 
         // Find and update task entry
