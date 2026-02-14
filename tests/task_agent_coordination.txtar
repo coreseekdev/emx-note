@@ -12,19 +12,19 @@ env EMX_TASK_TIMESTAMP="2026-02-14 15:00"
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 2"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 150000
 
-# Agent 1 takes task-01
+# Agent 1 takes TASK-01
 env EMX_AGENT_NAME=agent-1
 env EMX_TASK_TIMESTAMP="2026-02-14 10:00"
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Agent 1 task"
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01 --title "Agent 1 task"
 grep '@agent-1' $WORK/.emx-notes/test-task/TASK.md
 
-# Agent 2 cannot take task-01
+# Agent 2 cannot take TASK-01
 env EMX_AGENT_NAME=agent-2
-! exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
+! exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01
 stderr 'already taken'
 
-# Agent 2 can take task-02
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-02 --title "Agent 2 task"
+# Agent 2 can take TASK-02
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-02 --title "Agent 2 task"
 grep '@agent-2' $WORK/.emx-notes/test-task/TASK.md
 
 # List shows different owners
@@ -34,27 +34,27 @@ stdout '@agent-2'
 
 # Filter by owner
 exec emx-note --home $WORK/.emx-notes -c test-task task list --owner @agent-1
-stdout 'task-01'
-! stdout 'task-02'
+stdout 'TASK-01'
+! stdout 'TASK-02'
 
-# Agent 1 releases task-01
+# Agent 1 releases TASK-01
 env EMX_AGENT_NAME=agent-1
-exec emx-note --home $WORK/.emx-notes -c test-task task release task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task release TASK-01
 
-# Agent 2 can now take task-01
+# Agent 2 can now take TASK-01
 env EMX_AGENT_NAME=agent-2
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
-grep '\[Agent 1 task\]\[task-01\] @agent-2' $WORK/.emx-notes/test-task/TASK.md
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01
+grep '\[Agent 1 task\]\[TASK-01\] @agent-2' $WORK/.emx-notes/test-task/TASK.md
 
 # Agent 2 completes both tasks
-exec emx-note --home $WORK/.emx-notes -c test-task task release task-01 task-02 --done
+exec emx-note --home $WORK/.emx-notes -c test-task task release TASK-01 TASK-02 --done
 
 # Verify both done
 exec emx-note --home $WORK/.emx-notes -c test-task task list done --oneline
-stdout 'task-01'
-stdout 'task-02'
+stdout 'TASK-01'
+stdout 'TASK-02'
 
 # Reopen a done task
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01
-exec emx-note --home $WORK/.emx-notes -c test-task task show task-01
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01
+exec emx-note --home $WORK/.emx-notes -c test-task task show TASK-01
 stdout '@agent-2'

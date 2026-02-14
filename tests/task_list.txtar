@@ -16,49 +16,49 @@ env EMX_TASK_TIMESTAMP="2026-02-14 16:00"
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 3"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 160000
 
-# task-01: doing (taken by agent-1)
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Active task"
+# TASK-01: doing (taken by agent-1)
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01 --title "Active task"
 
-# task-02: done
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-02 --title "Done task"
-exec emx-note --home $WORK/.emx-notes -c test-task task release task-02 --done
+# TASK-02: done
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-02 --title "Done task"
+exec emx-note --home $WORK/.emx-notes -c test-task task release TASK-02 --done
 
-# task-03: backlog (not taken)
+# TASK-03: backlog (not taken)
 
 # List all tasks
 exec emx-note --home $WORK/.emx-notes -c test-task task list
-stdout 'task-01'
-stdout 'task-02'
-stdout 'task-03'
+stdout 'TASK-01'
+stdout 'TASK-02'
+stdout 'TASK-03'
 stdout 'doing'
 stdout 'done'
 stdout 'backlog'
 
 # List doing only
 exec emx-note --home $WORK/.emx-notes -c test-task task list doing
-stdout 'task-01'
-! stdout 'task-02'
-! stdout 'task-03'
+stdout 'TASK-01'
+! stdout 'TASK-02'
+! stdout 'TASK-03'
 
 # List done only
 exec emx-note --home $WORK/.emx-notes -c test-task task list done
-stdout 'task-02'
-! stdout 'task-01'
+stdout 'TASK-02'
+! stdout 'TASK-01'
 
 # List backlog only
 exec emx-note --home $WORK/.emx-notes -c test-task task list backlog
-stdout 'task-03'
-! stdout 'task-01'
+stdout 'TASK-03'
+! stdout 'TASK-01'
 
 # List with --oneline
 exec emx-note --home $WORK/.emx-notes -c test-task task list doing --oneline
-stdout '^task-01$'
+stdout '^TASK-01$'
 
 # List with --owner filter
 exec emx-note --home $WORK/.emx-notes -c test-task task list --owner @agent-1
-stdout 'task-01'
-! stdout 'task-02'
+stdout 'TASK-01'
+! stdout 'TASK-02'
 
 # List with owner=(none)
 exec emx-note --home $WORK/.emx-notes -c test-task task list doing --owner '(none)'
-! stdout 'task-01'
+! stdout 'TASK-01'

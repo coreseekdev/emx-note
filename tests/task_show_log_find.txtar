@@ -7,15 +7,15 @@ env EMX_TASK_TIMESTAMP="2026-02-14 10:00"
 exec emx-note --home $WORK/.emx-notes -g capsa create test-task
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 100000
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Test task"
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01 --title "Test task"
 env EMX_TASK_TIMESTAMP="2026-02-14 10:15"
-exec emx-note --home $WORK/.emx-notes -c test-task task comment task-01 "First comment"
+exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-01 "First comment"
 env EMX_TASK_TIMESTAMP="2026-02-14 10:30"
-exec emx-note --home $WORK/.emx-notes -c test-task task comment task-01 "Second comment"
+exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-01 "Second comment"
 
 # Test show command
-exec emx-note --home $WORK/.emx-notes -c test-task task show task-01
-stdout 'task-01'
+exec emx-note --home $WORK/.emx-notes -c test-task task show TASK-01
+stdout 'TASK-01'
 stdout 'Test task'
 stdout 'doing'
 stdout '@agent-1'
@@ -23,8 +23,8 @@ stdout '100000'
 stdout 'Comments: 2'
 
 # Test log command
-exec emx-note --home $WORK/.emx-notes -c test-task task log task-01
-stdout 'task-01'
+exec emx-note --home $WORK/.emx-notes -c test-task task log TASK-01
+stdout 'TASK-01'
 stdout 'doing'
 stdout '@agent-1'
 stdout '2026-02-14 10:15 First comment'
@@ -34,27 +34,27 @@ stdout '2026-02-14 10:30 Second comment'
 env EMX_TASK_TIMESTAMP="2026-02-14 15:00"
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 2"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 150000
-exec emx-note --home $WORK/.emx-notes -c test-task task log task-02
-stdout 'task-02'
+exec emx-note --home $WORK/.emx-notes -c test-task task log TASK-02
+stdout 'TASK-02'
 stdout 'backlog'
 stdout 'no comments'
 
 # Test find command
 exec emx-note --home $WORK/.emx-notes -c test-task task find 100000
-stdout 'task-01'
+stdout 'TASK-01'
 
 # Test find with partial match
 exec emx-note --home $WORK/.emx-notes -c test-task task find 100
-stdout 'task-01'
+stdout 'TASK-01'
 
 # Test find no match
 exec emx-note --home $WORK/.emx-notes -c test-task task find nonexistent
 stderr 'No tasks found'
 
 # Error: show not found
-! exec emx-note --home $WORK/.emx-notes -c test-task task show task-99
+! exec emx-note --home $WORK/.emx-notes -c test-task task show TASK-99
 stderr 'not found'
 
 # Error: log not found
-! exec emx-note --home $WORK/.emx-notes -c test-task task log task-99
+! exec emx-note --home $WORK/.emx-notes -c test-task task log TASK-99
 stderr 'not found'

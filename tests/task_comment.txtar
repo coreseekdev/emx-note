@@ -7,27 +7,27 @@ env EMX_TASK_TIMESTAMP="2026-02-14 10:30"
 exec emx-note --home $WORK/.emx-notes -g capsa create test-task
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 103000
-exec emx-note --home $WORK/.emx-notes -c test-task task take task-01 --title "Test task"
+exec emx-note --home $WORK/.emx-notes -c test-task task take TASK-01 --title "Test task"
 
 # Add comment
-exec emx-note --home $WORK/.emx-notes -c test-task task comment task-01 "Started implementation"
+exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-01 "Started implementation"
 
 # Verify comment with timestamp
 grep '2026-02-14 10:30 Started implementation' $WORK/.emx-notes/test-task/TASK.md
 
 # Add comment with git hash
-exec emx-note --home $WORK/.emx-notes -c test-task task comment task-01 "Fixed bug" --git a1b2c3d
+exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-01 "Fixed bug" --git a1b2c3d
 
 # Verify comment with git link
 grep 'Fixed bug \[a1b2c3d\]' $WORK/.emx-notes/test-task/TASK.md
 
 # Error: task not found
-! exec emx-note --home $WORK/.emx-notes -c test-task task comment task-99 "Comment"
+! exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-99 "Comment"
 stderr 'not found'
 
 # Error: task not in body (backlog task)
 env EMX_TASK_TIMESTAMP="2026-02-14 15:00"
 exec emx-note --home $WORK/.emx-notes -c test-task daily "Test Note 2"
 exec emx-note --home $WORK/.emx-notes -c test-task task add 150000
-! exec emx-note --home $WORK/.emx-notes -c test-task task comment task-02 "Comment"
+! exec emx-note --home $WORK/.emx-notes -c test-task task comment TASK-02 "Comment"
 stderr 'not in body'

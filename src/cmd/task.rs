@@ -40,7 +40,7 @@ impl TaskFileReader {
     pub fn load(path: &Path) -> io::Result<Self> {
         let content = fs::read_to_string(path)?;
         let prefix = extract_frontmatter_prefix(&content)
-            .unwrap_or_else(|| "task-".to_string());
+            .unwrap_or_else(|| "TASK-".to_string());
         Ok(TaskFileReader { content, prefix })
     }
 
@@ -311,7 +311,7 @@ fn load_task_content(capsa_path: &Path) -> io::Result<String> {
         // Format: frontmatter, blank line, body separator, blank line for references
         Ok(
 r#"---
-PREFIX: task-
+PREFIX: TASK-
 ---
 
 ---
@@ -370,7 +370,7 @@ fn cmd_add(capsa_path: &Path, node_ref: &str) -> io::Result<()> {
         // Default empty TASK.md content
         // Format: frontmatter, blank line, body separator, blank line for references
         r#"---
-PREFIX: task-
+PREFIX: TASK-
 ---
 
 ---
@@ -383,7 +383,7 @@ PREFIX: task-
     } else {
         TaskFileReader {
             content: content.clone(),
-            prefix: "task-".to_string(),
+            prefix: "TASK-".to_string(),
         }
     };
 
@@ -424,7 +424,7 @@ fn cmd_take(
     let content = load_task_content(capsa_path)?;
     let reader = TaskFileReader {
         content: content.clone(),
-        prefix: "task-".to_string(),
+        prefix: "TASK-".to_string(),
     };
 
     // Find task in references
@@ -529,7 +529,7 @@ fn cmd_comment(
     let content = load_task_content(capsa_path)?;
     let reader = TaskFileReader {
         content: content.clone(),
-        prefix: "task-".to_string(),
+        prefix: "TASK-".to_string(),
     };
 
     // Find task
@@ -608,7 +608,7 @@ fn cmd_release(
     let content = load_task_content(capsa_path)?;
     let reader = TaskFileReader {
         content: content.clone(),
-        prefix: "task-".to_string(),
+        prefix: "TASK-".to_string(),
     };
 
     if dry_run {
@@ -646,11 +646,11 @@ fn cmd_release(
         // Find and update task entry
         let current_reader = TaskFileReader {
             content: current_content.clone(),
-            prefix: "task-".to_string(),
+            prefix: "TASK-".to_string(),
         };
 
         if let Some((_, task_line)) = current_reader.find_task_entry_line(task_id) {
-            // task_line is the unique source locator (contains unique task-id like [task-01])
+            // task_line is the unique source locator (contains unique task-id like [TASK-01])
             // Step 1: Remove owner from the end
             let updated = if let Some(at_pos) = task_line.find('@') {
                 task_line[..at_pos].trim_end().to_string()
