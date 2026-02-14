@@ -758,6 +758,11 @@ fn cmd_release(
         save_task_content(capsa_path, &current_content)?;
     }
 
+    // Show log after marking done for single task
+    if done && task_ids.len() == 1 {
+        return cmd_log(capsa_path, &task_ids[0]);
+    }
+
     for task_id in task_ids {
         println!("{}", task_id);
     }
