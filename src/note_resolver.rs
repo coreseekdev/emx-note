@@ -218,7 +218,22 @@ fn resolve_by_timestamp(
     time: &str,
     extensions: &[&str],
 ) -> io::Result<ResolvedNote> {
-    resolve_in_date_dir(capsa_path, date, time, extensions)
+    // First try #daily/YYYYMMDD/ directory
+    let result = resolve_in_date_dir(capsa_path, date, time, extensions)?;
+    if !matches!(result, ResolvedNote::NotFound) {
+        return Ok(result);
+    }
+
+    // Also try note/ directory for permanent notes with timestamp filenames
+    let note_dir = capsa_path.join("note");
+    if note_dir.exists() {
+        let result = find_by_prefix(&note_dir, &format!("{}{}", date, time), extensions, false)?;
+        if !matches!(result, ResolvedNote::NotFound) {
+            return Ok(result);
+        }
+    }
+
+    Ok(ResolvedNote::NotFound)
 }
 
 /// Resolve by date and prefix in the date's daily directory
