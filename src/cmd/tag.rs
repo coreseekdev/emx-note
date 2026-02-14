@@ -3,11 +3,11 @@
 //! Tags are stored as #xxxx.md files in the capsa root directory.
 //! Notes added to tags are grouped by date.
 
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::fs;
+use std::io;
 use std::path::PathBuf;
 use chrono::Local;
-use emx_note::TagCommand;
+use emx_note::{EditOp, apply_edits, TagCommand};
 use emx_note::util;
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, cmd: TagCommand) -> io::Result<()> {
@@ -75,31 +75,38 @@ fn add_single_tag(
     // Get note title
     let note_title = get_note_title(note_path)?;
 
-    // Create or append to tag file
-    let mut file = if tag_file.exists() {
+    // The link line is our unique source locator for checking duplicates
+    let link_line = format!("- [{}]({})", note_title, note_relative);
+
+    if tag_file.exists() {
         // Check if note already tagged
         let content = fs::read_to_string(&tag_file)?;
-        if content.contains(&format!("]({})", note_relative)) {
+        if content.lines().any(|line| line.contains(&format!("]({})", note_relative))) {
             return Ok(()); // Already tagged, silently skip
         }
-        OpenOptions::new().append(true).open(&tag_file)?
+
+        // Build edits to add date header (if needed) and link
+        let date_header = format!("## {}", date_display);
+        let has_date_header = content.lines().any(|line| line == date_header);
+
+        let mut edits = Vec::new();
+
+        if !has_date_header {
+            // Need to add date header first
+            edits.push(EditOp::append(format!("\n{}", date_header)));
+        }
+
+        // Add the link line (unique source locator is the link content)
+        edits.push(EditOp::append(link_line));
+
+        let new_content = apply_edits(&content, edits)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        fs::write(&tag_file, new_content)?;
     } else {
-        // Create new tag file with heading
-        let mut file = fs::File::create(&tag_file)?;
-        writeln!(file, "# {}\n", tag.trim_start_matches('#'))?;
-        file
-    };
-
-    // Add date group header and link
-    let content = fs::read_to_string(&tag_file)?;
-    let date_header = format!("## {}", date_display);
-
-    if !content.contains(&date_header) {
-        writeln!(file)?;
-        writeln!(file, "## {}", date_display)?;
+        // Create new tag file with heading, date header, and link
+        let content = format!("# {}\n\n{}\n{}", tag.trim_start_matches('#'), date_display, link_line);
+        fs::write(&tag_file, content)?;
     }
-
-    writeln!(file, "- [{}]({})", note_title, note_relative)?;
 
     // Output tag file path
     println!("{}", util::display_path(&tag_file));
@@ -151,58 +158,68 @@ fn remove_single_tag(capsa_path: &PathBuf, note_relative: &str, tag: &str) -> io
     }
 
     let content = fs::read_to_string(&tag_file)?;
-    let lines: Vec<&str> = content.lines().collect();
-    let mut new_lines: Vec<String> = Vec::new();
-    let mut removed = false;
-    let mut current_date_idx: Option<usize> = None;
 
-    for line in lines.iter() {
-        // Track date headers
+    // Step 1: Find the exact line to delete (unique source locator)
+    // The line contains ](note_relative) which should be unique
+    let line_to_delete = content.lines()
+        .find(|line| line.contains(&format!("]({})", note_relative)));
+
+    let link_line = match line_to_delete {
+        Some(line) => line.to_string(),
+        None => return Ok(()), // Note wasn't in this tag, silently succeed
+    };
+
+    // Step 2: Find the date header for this link (to check if section becomes empty)
+    let mut date_to_delete: Option<String> = None;
+    let mut current_date_header: Option<String> = None;
+    let mut links_count = 0;
+
+    for line in content.lines() {
         if line.starts_with("## ") {
-            // Check if previous date section was empty
-            if let Some(idx) = current_date_idx {
-                let section_content: Vec<&String> = new_lines[idx..].iter()
-                    .filter(|l| !l.trim().is_empty())
-                    .collect();
-                if section_content.len() == 1 {
-                    new_lines.truncate(idx);
-                }
+            // Check previous section
+            if links_count == 0 && current_date_header.is_some() {
+                // Previous section was already empty (shouldn't happen but handle it)
             }
-            current_date_idx = Some(new_lines.len());
-            new_lines.push(line.to_string());
-            continue;
-        }
-
-        // Check for the note link
-        if line.contains(&format!("]({})", note_relative)) {
-            removed = true;
-            continue; // Skip this line
-        }
-
-        new_lines.push(line.to_string());
-    }
-
-    // Check final date section
-    if let Some(idx) = current_date_idx {
-        let section_content: Vec<&String> = new_lines[idx..].iter()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-        if section_content.len() == 1 {
-            new_lines.truncate(idx);
+            current_date_header = Some(line.to_string());
+            links_count = 0;
+        } else if line.starts_with("- [") {
+            if line == link_line {
+                // This is the line we're deleting, don't count it
+            } else {
+                links_count += 1;
+            }
         }
     }
 
-    if !removed {
-        // Note wasn't in this tag, silently succeed
-        return Ok(());
+    // After the loop, check if current section becomes empty
+    if links_count == 0 {
+        date_to_delete = current_date_header;
     }
 
-    // If tag file only has main heading left, delete it
-    let non_empty: Vec<&String> = new_lines.iter().filter(|l| !l.trim().is_empty()).collect();
+    // Step 3: Build edits - collect all lines to delete
+    let mut edits = Vec::new();
+
+    // Delete the link line (unique source locator)
+    edits.push(EditOp::delete_line(&link_line));
+
+    // Add date header deletion if needed
+    if let Some(ref date_line) = date_to_delete {
+        edits.push(EditOp::delete_line(date_line));
+    }
+
+    // Step 4: Apply edits
+    let new_content = apply_edits(&content, edits)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    // Step 5: Check if file should be deleted (only main heading left)
+    let non_empty: Vec<&str> = new_content.lines()
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+
     if non_empty.is_empty() || (non_empty.len() == 1 && non_empty[0].starts_with('#')) {
         fs::remove_file(&tag_file)?;
     } else {
-        fs::write(&tag_file, new_lines.join("\n") + "\n")?;
+        fs::write(&tag_file, &new_content)?;
     }
 
     // Output tag file path

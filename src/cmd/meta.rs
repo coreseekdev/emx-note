@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io;
+use emx_note::{EditOp, apply_edits};
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -26,7 +27,14 @@ pub fn run(
     // Parse or modify frontmatter
     if delete {
         if let Some(k) = key {
-            let updated = delete_key(&content, &k)?;
+            let (old_fm, new_fm) = delete_key_edit(&content, &k)?;
+            let edits = if new_fm.is_empty() {
+                vec![EditOp::replace(&old_fm, "")]
+            } else {
+                vec![EditOp::replace(&old_fm, &new_fm)]
+            };
+            let updated = apply_edits(&content, edits)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
             fs::write(&note_path, updated)?;
             eprintln!("Deleted key '{}'", k);
         } else {
@@ -53,7 +61,15 @@ pub fn run(
             } else {
                 serde_yaml::Value::Sequence(value.into_iter().map(serde_yaml::Value::String).collect())
             };
-            let updated = set_key(&content, &k, yaml_value.clone())?;
+            let (old_fm, new_fm) = set_key_edit(&content, &k, yaml_value.clone())?;
+            let edits = if old_fm.is_empty() {
+                // No existing frontmatter - insert at start
+                vec![EditOp::insert_at_line(0, &new_fm)]
+            } else {
+                vec![EditOp::replace(&old_fm, &new_fm)]
+            };
+            let updated = apply_edits(&content, edits)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
             fs::write(&note_path, updated)?;
 
             // Output the value that was set (for confirmation)
@@ -129,9 +145,18 @@ fn get_key(content: &str, key: &str) -> Option<String> {
     }
 }
 
-/// Set a key value in frontmatter
-fn set_key(content: &str, key: &str, value: serde_yaml::Value) -> io::Result<String> {
+/// Set a key value in frontmatter, returns (old_frontmatter_block, new_frontmatter_block) for EditOp
+fn set_key_edit(content: &str, key: &str, value: serde_yaml::Value) -> io::Result<(String, String)> {
     let frontmatter = extract_frontmatter(content);
+
+    // Build the old frontmatter block (unique source locator)
+    let old_block = if frontmatter.is_empty() {
+        // No existing frontmatter - the "old" is empty string at start
+        String::new()
+    } else {
+        // Existing frontmatter block
+        format!("---\n{}\n---", frontmatter)
+    };
 
     let yaml: serde_yaml::Value = if frontmatter.is_empty() {
         serde_yaml::Value::Mapping(serde_yaml::mapping::Mapping::new())
@@ -144,26 +169,24 @@ fn set_key(content: &str, key: &str, value: serde_yaml::Value) -> io::Result<Str
     let updated = set_nested_value(yaml, key, value);
     let new_frontmatter = serde_yaml::to_string(&updated).unwrap_or_default();
 
-    // Find body content: skip frontmatter end marker and any following newlines
-    let body = if frontmatter.is_empty() {
-        content
-    } else if let Some(end_marker_pos) = content.find("\n---") {
-        let after_marker = end_marker_pos + 4; // Skip "\n---"
-        // Skip any newlines after the end marker
-        content[after_marker..].trim_start_matches(|c| c == '\n' || c == '\r')
-    } else {
-        content
-    };
+    // Build the new frontmatter block
+    let new_block = format!("---\n{}\n---", new_frontmatter.trim());
 
-    Ok(format!("---\n{}\n---\n{}", new_frontmatter.trim(), body))
+    Ok((old_block, new_block))
 }
 
-/// Delete a key from frontmatter
-fn delete_key(content: &str, key: &str) -> io::Result<String> {
+/// Delete a key from frontmatter, returns (old_frontmatter_block, new_frontmatter_block) for EditOp
+fn delete_key_edit(content: &str, key: &str) -> io::Result<(String, String)> {
     let frontmatter = extract_frontmatter(content);
     if frontmatter.is_empty() {
-        return Ok(content.to_string());
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "No frontmatter to delete from"
+        ));
     }
+
+    // Build the old frontmatter block (unique source locator)
+    let old_block = format!("---\n{}\n---", frontmatter);
 
     let yaml: serde_yaml::Value = serde_yaml::from_str(&frontmatter).map_err(|e| {
         io::Error::new(io::ErrorKind::InvalidData, format!("Invalid YAML: {}", e))
@@ -171,22 +194,27 @@ fn delete_key(content: &str, key: &str) -> io::Result<String> {
 
     let updated = delete_nested_value(yaml, key);
 
-    // Find body content: skip frontmatter end marker and any following newlines
-    let body = if let Some(end_marker_pos) = content.find("\n---") {
-        let after_marker = end_marker_pos + 4;
-        content[after_marker..].trim_start_matches(|c| c == '\n' || c == '\r')
-    } else {
-        content
-    };
-
+    // If frontmatter becomes empty, we need to delete the entire block including trailing newlines
     if updated.is_null() || (updated.is_mapping() && updated.as_mapping().map(|m| m.is_empty()).unwrap_or(false)) {
-        // Remove entire frontmatter if empty
-        return Ok(body.to_string());
+        // Return empty new block to effectively delete frontmatter
+        // The old block includes trailing newline to clean up properly
+        let old_with_newline = if content.starts_with(&old_block) {
+            let after = &content[old_block.len()..];
+            if after.starts_with('\n') {
+                format!("{}\n", old_block)
+            } else {
+                old_block
+            }
+        } else {
+            old_block
+        };
+        return Ok((old_with_newline, String::new()));
     }
 
     let new_frontmatter = serde_yaml::to_string(&updated).unwrap_or_default();
+    let new_block = format!("---\n{}\n---", new_frontmatter.trim());
 
-    Ok(format!("---\n{}\n---\n{}", new_frontmatter.trim(), body))
+    Ok((old_block, new_block))
 }
 
 /// Set nested value in YAML

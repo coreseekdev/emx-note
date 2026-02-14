@@ -1,9 +1,9 @@
 //! Daily note command module
 
-use std::io::{self, Write, Read};
-use std::fs::{self, OpenOptions};
+use std::io::{self, Read};
+use std::fs;
 use chrono::{Local, DateTime, NaiveDateTime, TimeZone};
-use emx_note::CapsaRef;
+use emx_note::{CapsaRef, EditOp, apply_edits};
 use emx_note::util;
 
 /// Get current timestamp, allowing override via EMX_TASK_TIMESTAMP for testing
@@ -85,19 +85,21 @@ fn update_daily_link(
     // Ensure note/ directory exists
     fs::create_dir_all(&note_dir)?;
 
-    // Create or append to the daily link file
-    let mut file = if daily_link_path.exists() {
-        OpenOptions::new().append(true).open(&daily_link_path)?
-    } else {
-        // Create new file with title
-        let mut file = fs::File::create(&daily_link_path)?;
-        writeln!(file, "# Daily Notes\n")?;
-        file
-    };
+    // The link line (unique content to append)
+    let link_line = format!("- [{}](#daily/{}/{})", title, date_str, filename);
 
-    // Add link to the new note
-    // Link format: - [title](#daily/YYYYMMDD/filename)
-    writeln!(file, "- [{}](#daily/{}/{})", title, date_str, filename)?;
+    if daily_link_path.exists() {
+        // Append to existing file using EditOp
+        let content = fs::read_to_string(&daily_link_path)?;
+        let edits = vec![EditOp::append(&link_line)];
+        let new_content = apply_edits(&content, edits)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        fs::write(&daily_link_path, new_content)?;
+    } else {
+        // Create new file with title and link
+        let content = format!("# Daily Notes\n\n{}", link_line);
+        fs::write(&daily_link_path, content)?;
+    }
 
     Ok(())
 }
