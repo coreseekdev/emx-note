@@ -44,16 +44,6 @@ impl TaskFileReader {
         Ok(TaskFileReader { content, prefix })
     }
 
-    /// Get the task ID prefix
-    pub fn get_prefix(&self) -> &str {
-        &self.prefix
-    }
-
-    /// Get the raw content
-    pub fn content(&self) -> &str {
-        &self.content
-    }
-
     /// Get all reference definitions (task-id -> node_ref)
     pub fn get_references(&self) -> Vec<(String, String)> {
         extract_references(&self.content)
