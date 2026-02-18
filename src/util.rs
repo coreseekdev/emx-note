@@ -151,7 +151,7 @@ fn validate_not_system_directory(path: &Path) -> io::Result<()> {
             if path_normalized.contains(&sys_dir_lower) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("Cannot link to Windows system directory")
+                    "Cannot link to Windows system directory"
                 ));
             }
         }
