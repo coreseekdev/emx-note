@@ -497,3 +497,541 @@ PREFIX: TASK-
         fs::write(&path, content)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Clean all environment variables used by tests
+    fn clean_env() {
+        std::env::remove_var("EMX_TASK_TIMESTAMP");
+        std::env::remove_var("EMX_TASKFILE");
+        std::env::remove_var("EMX_AGENT_NAME");
+    }
+
+    // === CapsaEngine Tests ===
+
+    #[test]
+    fn test_create_permanent_note_with_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let result = engine.create_permanent_note(
+            Some("Test Note"),
+            None,
+            "# Test Content\n\nThis is a test note."
+        );
+
+        assert!(result.is_ok());
+        let note_path = result.unwrap();
+        assert!(note_path.exists());
+        assert!(note_path.to_string_lossy().contains("test-note"));
+    }
+
+    #[test]
+    fn test_create_permanent_note_with_source() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let source = "https://example.com/article";
+        let result = engine.create_permanent_note(
+            Some("Article"),
+            Some(source),
+            "# Article Content"
+        );
+
+        assert!(result.is_ok());
+        let note_path = result.unwrap();
+
+        // Check note is in hash directory
+        assert!(note_path.to_string_lossy().contains("note"));
+        assert!(note_path.exists());
+
+        // Check .source file exists
+        let note_dir = note_path.parent().unwrap();
+        let source_file = note_dir.join(".source");
+        assert!(source_file.exists());
+        let source_content = fs::read_to_string(&source_file).unwrap();
+        assert_eq!(source_content, source);
+    }
+
+    #[test]
+    fn test_create_permanent_note_without_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let result = engine.create_permanent_note(
+            None,
+            None,
+            "# Content"
+        );
+
+        assert!(result.is_ok());
+        let note_path = result.unwrap();
+        // Should use timestamp as filename
+        assert!(note_path.exists());
+    }
+
+    #[test]
+    fn test_create_daily_note_with_title() {
+        clean_env();
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        // Set fixed timestamp for testing
+        std::env::set_var("EMX_TASK_TIMESTAMP", "2024-01-15 10:30");
+
+        let result = engine.create_daily_note(
+            Some("Meeting Notes"),
+            "# Meeting\n\nAttendees: Alice, Bob"
+        );
+
+        std::env::remove_var("EMX_TASK_TIMESTAMP");
+
+        assert!(result.is_ok());
+        let note_path = result.unwrap();
+
+        // Check path: #daily/20240115/103000-meeting-notes.md
+        assert!(note_path.to_string_lossy().contains("#daily"));
+        assert!(note_path.to_string_lossy().contains("20240115"));
+        assert!(note_path.to_string_lossy().contains("meeting-notes"));
+        assert!(note_path.exists());
+
+        // Check daily link file was created
+        let daily_link = temp_dir.path().join("note").join("#daily.md");
+        assert!(daily_link.exists());
+        let link_content = fs::read_to_string(&daily_link).unwrap();
+        assert!(link_content.contains("Meeting Notes"));
+        assert!(link_content.contains("#daily/"));
+    }
+
+    #[test]
+    fn test_create_daily_note_without_title() {
+        clean_env();
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        std::env::set_var("EMX_TASK_TIMESTAMP", "2024-01-15 10:30");
+
+        let result = engine.create_daily_note(
+            None,
+            "# Daily Note Content"
+        );
+
+        std::env::remove_var("EMX_TASK_TIMESTAMP");
+
+        assert!(result.is_ok());
+        let note_path = result.unwrap();
+        // Should not have title suffix
+        assert!(!note_path.to_string_lossy().contains("-"));
+        assert!(note_path.exists());
+    }
+
+    // === Tags Tests ===
+
+    #[test]
+    fn test_tags_get() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tags = engine.tags();
+        let tag = tags.get("research");
+
+        assert_eq!(tag.name, "research");
+        assert_eq!(tag.file(), temp_dir.path().join("#research.md"));
+    }
+
+    #[test]
+    fn test_tags_get_with_hash_prefix() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tags = engine.tags();
+        let tag = tags.get("#research");
+
+        // Should strip the # prefix
+        assert_eq!(tag.name, "research");
+        assert_eq!(tag.file(), temp_dir.path().join("#research.md"));
+    }
+
+    #[test]
+    fn test_tags_list_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tags = engine.tags().list().unwrap();
+        assert!(tags.is_empty());
+    }
+
+    #[test]
+    fn test_tags_list_with_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create tag files
+        fs::write(temp_dir.path().join("#research.md"), "# research\n").unwrap();
+        fs::write(temp_dir.path().join("#ideas.md"), "# ideas\n").unwrap();
+        fs::write(temp_dir.path().join("regular.md"), "# regular\n").unwrap();
+
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tags = engine.tags().list().unwrap();
+        assert_eq!(tags.len(), 2);
+        assert!(tags.contains(&"ideas".to_string()));
+        assert!(tags.contains(&"research".to_string()));
+    }
+
+    // === Tag Tests ===
+
+    #[test]
+    fn test_tag_add_note() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a note in the capsa
+        let note_path = temp_dir.path().join("note.md");
+        fs::write(&note_path, "# Test Note\n\nContent").unwrap();
+
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tag = engine.tags().get("test-tag");
+        let result = tag.add_note(&note_path);
+
+        assert!(result.is_ok());
+
+        // Check tag file was created
+        let tag_file = temp_dir.path().join("#test-tag.md");
+        assert!(tag_file.exists());
+
+        let content = fs::read_to_string(&tag_file).unwrap();
+        assert!(content.contains("# test-tag"));
+        assert!(content.contains("Test Note"));
+        assert!(content.contains("note.md"));
+    }
+
+    #[test]
+    fn test_tag_add_duplicate_note() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let note_path = temp_dir.path().join("note.md");
+        fs::write(&note_path, "# Test Note").unwrap();
+
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tag = engine.tags().get("test");
+
+        // Add note twice
+        tag.add_note(&note_path).unwrap();
+        tag.add_note(&note_path).unwrap();
+
+        // Should only appear once
+        let tag_file = temp_dir.path().join("#test.md");
+        let content = fs::read_to_string(&tag_file).unwrap();
+        let count = content.matches("Test Note").count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_tag_remove_note() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let note_path = temp_dir.path().join("note.md");
+        fs::write(&note_path, "# Test Note").unwrap();
+
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tag = engine.tags().get("test");
+        tag.add_note(&note_path).unwrap();
+
+        // Verify note was added
+        let tag_file = temp_dir.path().join("#test.md");
+        assert!(tag_file.exists());
+
+        // Remove the note
+        tag.remove_note("note.md").unwrap();
+
+        // Verify note was removed from tag file
+        if tag_file.exists() {
+            let content = fs::read_to_string(&tag_file).unwrap();
+            // Should not contain the note link anymore
+            assert!(!content.contains("Test Note"));
+            assert!(!content.contains("note.md"));
+        }
+    }
+
+    #[test]
+    fn test_tag_list_notes() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create notes
+        let note1 = temp_dir.path().join("note1.md");
+        let note2 = temp_dir.path().join("note2.md");
+        fs::write(&note1, "# Note 1").unwrap();
+        fs::write(&note2, "# Note 2").unwrap();
+
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let tag = engine.tags().get("test");
+        tag.add_note(&note1).unwrap();
+        tag.add_note(&note2).unwrap();
+
+        let notes = tag.list_notes().unwrap();
+        assert_eq!(notes.len(), 2);
+    }
+
+    // === TaskFile Tests ===
+
+    #[test]
+    fn test_task_file_path() {
+        clean_env();
+
+        // Verify environment is clean
+        assert!(std::env::var("EMX_TASKFILE").is_err());
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+        assert_eq!(task_file.file(), temp_dir.path().join("TASK.md"));
+    }
+
+    #[test]
+    fn test_task_file_path_with_env_override() {
+        clean_env();
+        std::env::set_var("EMX_TASKFILE", "CUSTOM.md");
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+        assert_eq!(task_file.file(), temp_dir.path().join("CUSTOM.md"));
+
+        std::env::remove_var("EMX_TASKFILE");
+    }
+
+    #[test]
+    fn test_task_file_load_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+        let content = task_file.load().unwrap();
+
+        assert!(content.contains("---"));
+        assert!(content.contains("PREFIX: TASK-"));
+    }
+
+    #[test]
+    fn test_task_file_save_and_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+
+        let content = r#"---
+PREFIX: CUSTOM-
+---
+
+---
+
+"#;
+        task_file.save(content).unwrap();
+
+        let loaded = task_file.load().unwrap();
+        assert!(loaded.contains("PREFIX: CUSTOM-"));
+    }
+
+    #[test]
+    fn test_task_file_get_timestamp() {
+        clean_env();
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+        let timestamp = task_file.get_timestamp();
+
+        // Should be in format "YYYY-MM-DD HH:MM"
+        assert!(timestamp.len() == 16);
+        assert!(timestamp.contains("-"));
+        assert!(timestamp.contains(":"));
+        assert!(timestamp.contains(" "));
+    }
+
+    #[test]
+    fn test_task_file_get_timestamp_with_override() {
+        clean_env();
+
+        std::env::set_var("EMX_TASK_TIMESTAMP", "2024-01-15 10:30");
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+        let timestamp = task_file.get_timestamp();
+
+        assert_eq!(timestamp, "2024-01-15 10:30");
+
+        std::env::remove_var("EMX_TASK_TIMESTAMP");
+    }
+
+    #[test]
+    fn test_task_file_get_agent_name() {
+        clean_env();
+
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        let task_file = engine.task_file();
+
+        // No agent set
+        let agent = task_file.get_agent_name();
+        assert!(agent.is_none());
+
+        // With agent set
+        std::env::set_var("EMX_AGENT_NAME", "test-agent");
+        let agent = task_file.get_agent_name();
+        assert_eq!(agent.unwrap(), "@test-agent");
+        std::env::remove_var("EMX_AGENT_NAME");
+    }
+
+    // === Deref Tests ===
+
+    #[test]
+    fn test_capsa_engine_deref() {
+        let temp_dir = TempDir::new().unwrap();
+        let capsa_ref = CapsaRef {
+            name: "test".to_string(),
+            path: temp_dir.path().to_path_buf(),
+            is_link: false,
+            is_default: false,
+        };
+        let engine = CapsaEngine::new(capsa_ref);
+
+        // Can access CapsaRef fields through Deref
+        assert_eq!(&engine.name, &"test");
+        assert_eq!(&engine.path, temp_dir.path());
+    }
+}
