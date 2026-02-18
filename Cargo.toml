@@ -20,6 +20,7 @@ sha2 = "0.10"
 
 [dev-dependencies]
 emx-testspec = { git = "https://github.com/coreseekdev/emx-testspec" }
+tempfile = "3"
 
 [lib]
 name = "emx_note"

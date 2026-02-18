@@ -1,7 +1,7 @@
 //! Permanent note command module
 
-use std::io::{self, Read};
-use emx_note::{CapsaEngine, util};
+use std::io;
+use emx_note::{CapsaEngine, util, read_stdin_content};
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -25,15 +25,4 @@ pub fn run(
     println!("{}", util::display_path(&note_path));
 
     Ok(())
-}
-
-/// Read content from stdin, returns empty string if no data
-fn read_stdin_content() -> io::Result<String> {
-    let mut buffer = String::new();
-    match io::stdin().read_to_string(&mut buffer) {
-        Ok(0) => Ok(String::new()),
-        Ok(_) => Ok(buffer),
-        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(String::new()),
-        Err(e) => Err(e),
-    }
 }

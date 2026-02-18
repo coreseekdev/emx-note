@@ -6,6 +6,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use emx_note::{extract_references, extract_frontmatter_prefix, get_reference_dest};
+use emx_note::constants as C;
 
 /// Task status
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,7 +38,7 @@ impl TaskFileReader {
     pub fn load(path: &Path) -> io::Result<Self> {
         let content = fs::read_to_string(path)?;
         let prefix = extract_frontmatter_prefix(&content)
-            .unwrap_or_else(|| "TASK-".to_string());
+            .unwrap_or_else(|| C::DEFAULT_TASK_PREFIX.to_string());
         Ok(TaskFileReader { content, prefix })
     }
 
@@ -45,7 +46,7 @@ impl TaskFileReader {
     pub fn new(content: String) -> Self {
         TaskFileReader {
             content,
-            prefix: "TASK-".to_string(),
+            prefix: C::DEFAULT_TASK_PREFIX.to_string(),
         }
     }
 
@@ -65,6 +66,8 @@ impl TaskFileReader {
                 }
             }
         }
+        // TASK_ID_FORMAT is "{:02}" which is a format spec, not usable directly in format!
+        // We keep the literal here as format strings must be literals
         format!("{}{:02}", self.prefix, max_num + 1)
     }
 
@@ -208,7 +211,7 @@ impl TaskFileReader {
                 }
                 start
             }
-            None => 3, // Default: after frontmatter
+            None => C::DEFAULT_TASK_BODY_START, // Default: after frontmatter
         };
 
         if let Some(hdr) = header {

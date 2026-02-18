@@ -14,6 +14,7 @@ use chrono::{Local, DateTime, NaiveDateTime, TimeZone};
 use crate::{CapsaRef, EditOp, apply_edits, DEFAULT_EXTENSIONS};
 use crate::util;
 use crate::note_resolver;
+use crate::constants as C;
 
 // === CapsaEngine ===
 
@@ -38,23 +39,23 @@ impl CapsaEngine {
         content: &str,
     ) -> io::Result<PathBuf> {
         let now = Local::now();
-        let timestamp = now.format("%Y%m%d%H%M%S").to_string();
+        let timestamp = now.format(C::DAILY_TIMESTAMP_FORMAT).to_string();
 
         // Generate filename
         let filename = if let Some(t) = title {
-            format!("{}.md", util::slugify(t))
+            format!("{}{}", util::slugify(t), C::MARKDOWN_EXTENSION)
         } else {
-            format!("{}.md", timestamp)
+            format!("{}{}", timestamp, C::MARKDOWN_EXTENSION)
         };
 
         // Determine the directory path
         let note_dir = if let Some(src) = source {
             // With source: note/{hash}/
             let hash = util::abbreviate_hash(&util::hash_source(src));
-            self.inner.path.join("note").join(&hash)
+            self.inner.path.join(C::NOTE_SUBDIR).join(&hash)
         } else {
             // Without source: note/
-            self.inner.path.join("note")
+            self.inner.path.join(C::NOTE_SUBDIR)
         };
 
         // Create directory and note file
@@ -66,7 +67,7 @@ impl CapsaEngine {
 
         // If source is provided, create a .source file with the original source string
         if let Some(src) = source {
-            let source_file = note_dir.join(".source");
+            let source_file = note_dir.join(C::SOURCE_FILENAME);
             fs::write(&source_file, src)?;
         }
 
@@ -80,25 +81,25 @@ impl CapsaEngine {
         content: &str,
     ) -> io::Result<PathBuf> {
         let now = Self::get_timestamp();
-        let date_str = now.format("%Y%m%d").to_string();
-        let time_str = now.format("%H%M%S").to_string();
-        let date_display = now.format("%Y-%m-%d").to_string();
+        let date_str = now.format(C::DAILY_DATE_FORMAT).to_string();
+        let time_str = now.format(C::DAILY_TIME_FORMAT).to_string();
+        let date_display = now.format(C::DAILY_DATE_DISPLAY_FORMAT).to_string();
 
         // Use provided title or default
-        let title = title.unwrap_or("Daily Note");
+        let title = title.unwrap_or(C::DEFAULT_DAILY_TITLE);
 
         // Create slug (empty if default title)
-        let slug = if title == "Daily Note" {
+        let slug = if title == C::DEFAULT_DAILY_TITLE {
             String::new()
         } else {
             format!("-{}", util::slugify(title))
         };
 
         // Generate filename: HHmmSS[-title].md
-        let filename = format!("{}{}.md", time_str, slug);
+        let filename = format!("{}{}{}", time_str, slug, C::MARKDOWN_EXTENSION);
 
         // Create daily subdirectory: #daily/YYYYMMDD/
-        let daily_dir = self.inner.path.join("#daily").join(&date_str);
+        let daily_dir = self.inner.path.join(C::DAILY_SUBDIR).join(&date_str);
         fs::create_dir_all(&daily_dir)?;
 
         // Create note file
@@ -133,8 +134,8 @@ impl CapsaEngine {
         filename: &str,
         title: &str,
     ) -> io::Result<()> {
-        let note_dir = self.inner.path.join("note");
-        let daily_link_path = note_dir.join("#daily.md");
+        let note_dir = self.inner.path.join(C::NOTE_SUBDIR);
+        let daily_link_path = note_dir.join(C::DAILY_LINK_FILENAME);
 
         // Ensure note/ directory exists
         fs::create_dir_all(&note_dir)?;
@@ -217,10 +218,10 @@ impl<'a> Tags<'a> {
                 let name_str = name.to_string_lossy();
 
                 // Check for #*.md pattern
-                if name_str.starts_with('#') && name_str.ends_with(".md") {
+                if name_str.starts_with(C::TAG_PREFIX) && name_str.ends_with(C::MARKDOWN_EXTENSION) {
                     // Extract tag name without # and .md
-                    let tag_name = name_str[1..name_str.len() - 3].to_string();
-                    tags.push(tag_name);
+                    let tag_name = &name_str[1..name_str.len() - C::MARKDOWN_EXTENSION.len()];
+                    tags.push(tag_name.to_string());
                 }
             }
         }
@@ -241,7 +242,7 @@ pub struct Tag<'a> {
 impl<'a> Tag<'a> {
     /// Get the tag file path
     pub fn file(&self) -> PathBuf {
-        self.capsa.path.join(format!("#{}.md", self.name))
+        self.capsa.path.join(format!("{}{}{}", C::TAG_PREFIX, self.name, C::MARKDOWN_EXTENSION))
     }
 
     /// Add a note to this tag
@@ -258,7 +259,7 @@ impl<'a> Tag<'a> {
     fn add_note_internal(&self, note_relative: &str, note_path: &PathBuf) -> io::Result<()> {
         let tag_file = self.file();
         let now = Local::now();
-        let date_display = now.format("%Y-%m-%d").to_string();
+        let date_display = now.format(C::DAILY_DATE_DISPLAY_FORMAT).to_string();
 
         // Get note title
         let note_title = Self::extract_note_title(note_path)?;
@@ -425,7 +426,7 @@ impl<'a> Tag<'a> {
         Ok(note_path
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "Untitled".to_string()))
+            .unwrap_or_else(|| C::UNTITLED_NOTE_TITLE.to_string()))
     }
 }
 
@@ -443,7 +444,7 @@ impl<'a> TaskFile<'a> {
         if let Ok(filename) = std::env::var("EMX_TASKFILE") {
             self.capsa.path.join(filename)
         } else {
-            self.capsa.path.join("TASK.md")
+            self.capsa.path.join(C::TASK_FILENAME)
         }
     }
 
