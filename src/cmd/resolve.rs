@@ -35,7 +35,7 @@ fn create_default_capsa(ctx: &emx_note::ResolveContext, name: &str) -> io::Resul
 
     // Display the capsa name (not the internal hierarchical name)
     let display_name = if name.ends_with("/.") {
-        // Extract agent name from "agent/."
+        // Extract agent name from "agent/." or "@shared/."
         name.trim_end_matches("/.")
     } else {
         name

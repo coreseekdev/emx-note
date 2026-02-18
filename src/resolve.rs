@@ -4,26 +4,45 @@
 //! with support for:
 //! - Environment variable overrides (EMX_NOTE_HOME, EMX_NOTE_DEFAULT, EMX_AGENT_NAME)
 //! - Hierarchical agent namespaces (agent/capsa)
-//! - Global namespace (@shared/ for cross-agent collaboration)
+//! - Global shared namespace (@shared/ for agent-less operations)
 //! - Link files to external directories
 //! - Global vs agent-scoped operations
+//!
+//! ## Design Philosophy
+//!
+//! **No agent = Global shared space**
+//! - When `EMX_AGENT_NAME` is not set, operations target `@shared/` namespace
+//! - This is the default mode for ad-hoc note-taking
+//! - Shared across all agents and users
+//!
+//! **With agent = Private agent space**
+//! - When `EMX_AGENT_NAME` is set, operations target `agent/` namespace
+//! - Each agent has isolated private capsas
+//! - Prevents naming conflicts between agents
 //!
 //! ## Directory Structure
 //!
 //! ```text
 //! ~/.emx-notes/
 //! ├── agent1/
-//! │   ├── .          (agent1's default capsa)
+//! │   ├── .          (agent1's private default capsa)
 //! │   ├── work/
 //! │   └── personal/
 //! ├── agent2/
 //! │   ├── .
 //! │   └── projects/
-//! ├── @shared/
-//! │   ├── common/
-//! │   └── docs/
-//! └── ./
+//! └── @shared/
+//!     ├── .          (default when no agent)
+//!     ├── common/
+//!     └── docs/
 //! ```
+//!
+//! ## Why No Root-Level Capsas?
+//!
+//! Direct operations on `~/` (the home directory itself) don't make sense because:
+//! - Without clear ownership, root-level capsas become ambiguous
+//! - `@shared/` provides the same global accessibility with clear intent
+//! - Prevents accidental creation of "orphan" capsas outside any namespace
 
 use std::path::{Path, PathBuf};
 
@@ -31,8 +50,11 @@ use std::path::{Path, PathBuf};
 /// Must not be user-creatable (starts with dot)
 pub const DEFAULT_CAPSA_NAME: &str = ".default";
 
-/// Marker for global namespace (cross-agent shared capsas)
+/// Marker for global shared namespace (cross-agent shared capsas)
 pub const GLOBAL_NAMESPACE_MARKER: &str = "@";
+
+/// Name of the global shared namespace
+pub const SHARED_NAMESPACE: &str = "shared";
 
 /// Environment variable names
 pub const ENV_NOTE_HOME: &str = "EMX_NOTE_HOME";
@@ -79,14 +101,17 @@ impl ResolveContext {
     }
 
     /// Get the default capsa name based on resolution priority
-    /// Returns hierarchical format like "agent/." or "."
+    ///
+    /// Returns hierarchical format:
+    /// - With agent: `"agent/."` (agent's private space)
+    /// - Without agent: `"@shared/."` (global shared space)
     pub fn default_capsa_name(&self) -> String {
         // Priority 1: EMX_NOTE_DEFAULT environment variable
         if let Some(ref name) = self.default_override {
             return name.clone();
         }
 
-        // Priority 2: EMX_AGENT_NAME (as hierarchical namespace)
+        // Priority 2: EMX_AGENT_NAME (agent's private namespace)
         if let Some(ref agent) = self.agent_name {
             if !self.global {
                 // Agent's default capsa is at "agent/."
@@ -94,8 +119,9 @@ impl ResolveContext {
             }
         }
 
-        // Priority 3: root default "."
-        ".".to_string()
+        // Priority 3: Global shared namespace (@shared/.)
+        // When no agent is set, operations target the shared space
+        format!("{}/.", GLOBAL_NAMESPACE_MARKER.to_string() + SHARED_NAMESPACE)
     }
 
     /// Apply agent namespace to a capsa name
@@ -131,9 +157,9 @@ impl ResolveContext {
     /// Returns None if the capsa doesn't exist
     ///
     /// Resolution order:
-    /// 1. Global namespace (@name) - treated as @shared/name or just name
+    /// 1. Global namespace marker (@name) - treated as @shared/name or just name
     /// 2. Agent namespace (agent/name) - agent's private capsas
-    /// 3. Root namespace (name) - shared capsas, accessible by all
+    /// 3. Root namespace (name) - resolves directly (typically for @shared/)
     pub fn resolve_capsa(&self, name: &str) -> Option<CapsaRef> {
         // Priority 1: Global namespace marker (@shared/notes)
         if name.starts_with(GLOBAL_NAMESPACE_MARKER) {
@@ -217,7 +243,7 @@ impl ResolveContext {
     }
 
     /// List all available capsas
-    /// Returns flat list of paths like "agent1/.", "agent1/work", "@shared/common"
+    /// Returns flat list of paths like "agent1/.", "agent1/work", "@shared/."
     pub fn list_capsas(&self) -> Vec<String> {
         let mut capsas = Vec::new();
 
@@ -336,17 +362,17 @@ mod tests {
         let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), "explicit-default");
 
-        // Priority 2: EMX_AGENT_NAME (now returns "agent/.")
+        // Priority 2: EMX_AGENT_NAME (returns "agent/.")
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::set_var(ENV_AGENT_NAME, "my-agent");
         let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), "my-agent/.");
 
-        // Priority 3: "." (root default)
+        // Priority 3: @shared/. (when no agent)
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::remove_var(ENV_AGENT_NAME);
         let ctx = ResolveContext::new("/tmp".into(), false, false);
-        assert_eq!(ctx.default_capsa_name(), ".");
+        assert_eq!(ctx.default_capsa_name(), "@shared/.");
     }
 
     fn test_context(home: &str) -> ResolveContext {
