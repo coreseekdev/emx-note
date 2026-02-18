@@ -43,9 +43,9 @@ fn create_capsa(ctx: &ResolveContext, name: &str, path: Option<String>) -> io::R
         ));
     }
 
-    // Get the prefixed name (with agent prefix if applicable)
-    let prefixed_name = ctx.apply_agent_prefix(name);
-    let capsa_path = ctx.home.join(&prefixed_name);
+    // Get the namespaced name (with agent namespace if applicable)
+    let namespaced_name = ctx.apply_agent_namespace(name);
+    let capsa_path = ctx.home.join(&namespaced_name);
 
     if let Some(target_path) = path {
         // Create a link capsa

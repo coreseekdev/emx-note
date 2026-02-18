@@ -14,7 +14,7 @@ pub use markdown::{
     extract_references, extract_headings, extract_links,
     has_reference, get_reference_dest, find_heading_line, extract_frontmatter_prefix,
 };
-pub use resolve::{ResolveContext, CapsaRef, DEFAULT_CAPSA_NAME};
+pub use resolve::{ResolveContext, CapsaRef, DEFAULT_CAPSA_NAME, GLOBAL_NAMESPACE_MARKER};
 pub use util::{secure_path, validate_link_target, extract_note_title, slugify, hash_source, abbreviate_hash, MAX_FRONTMATTER_SIZE};
 pub use note_resolver::{ResolvedNote, resolve_note, resolve_note_or_error, resolve_note_with_force};
 

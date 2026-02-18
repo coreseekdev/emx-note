@@ -3,16 +3,36 @@
 //! This module handles the complex logic of resolving capsa (vault) paths
 //! with support for:
 //! - Environment variable overrides (EMX_NOTE_HOME, EMX_NOTE_DEFAULT, EMX_AGENT_NAME)
-//! - Default capsa (.default directory)
-//! - Agent prefixing
+//! - Hierarchical agent namespaces (agent/capsa)
+//! - Global namespace (@shared/ for cross-agent collaboration)
 //! - Link files to external directories
 //! - Global vs agent-scoped operations
+//!
+//! ## Directory Structure
+//!
+//! ```text
+//! ~/.emx-notes/
+//! ├── agent1/
+//! │   ├── .          (agent1's default capsa)
+//! │   ├── work/
+//! │   └── personal/
+//! ├── agent2/
+//! │   ├── .
+//! │   └── projects/
+//! ├── @shared/
+//! │   ├── common/
+//! │   └── docs/
+//! └── ./
+//! ```
 
 use std::path::{Path, PathBuf};
 
 /// System constant for the default capsa name
 /// Must not be user-creatable (starts with dot)
 pub const DEFAULT_CAPSA_NAME: &str = ".default";
+
+/// Marker for global namespace (cross-agent shared capsas)
+pub const GLOBAL_NAMESPACE_MARKER: &str = "@";
 
 /// Environment variable names
 pub const ENV_NOTE_HOME: &str = "EMX_NOTE_HOME";
@@ -28,7 +48,7 @@ pub const LINK_TARGET_KEY: &str = "target";
 pub struct ResolveContext {
     /// The base notes directory (EMX_NOTE_HOME)
     pub home: PathBuf,
-    /// Whether this is a global operation (bypasses agent prefixing)
+    /// Whether this is a global operation (bypasses agent namespace)
     pub global: bool,
     /// The agent name from environment (if set)
     pub agent_name: Option<String>,
@@ -59,79 +79,114 @@ impl ResolveContext {
     }
 
     /// Get the default capsa name based on resolution priority
+    /// Returns hierarchical format like "agent/." or "."
     pub fn default_capsa_name(&self) -> String {
         // Priority 1: EMX_NOTE_DEFAULT environment variable
         if let Some(ref name) = self.default_override {
             return name.clone();
         }
 
-        // Priority 2: EMX_AGENT_NAME (as capsa name)
+        // Priority 2: EMX_AGENT_NAME (as hierarchical namespace)
         if let Some(ref agent) = self.agent_name {
             if !self.global {
-                return agent.clone();
+                // Agent's default capsa is at "agent/."
+                return format!("{}/.", agent);
             }
         }
 
-        // Priority 3: hardcoded .default
-        DEFAULT_CAPSA_NAME.to_string()
+        // Priority 3: root default "."
+        ".".to_string()
     }
 
-    /// Apply agent prefix to a capsa name if needed
-    pub fn apply_agent_prefix(&self, name: &str) -> String {
-        // If global operation or no agent, no prefix
+    /// Apply agent namespace to a capsa name
+    /// Returns hierarchical format like "agent/name" or "agent/."
+    pub fn apply_agent_namespace(&self, name: &str) -> String {
+        // If global operation or no agent, no namespace
         if self.global || self.agent_name.is_none() {
             return name.to_string();
         }
 
-        // Special case: "default" maps directly to agent name
-        // (agent's personal default capsa, not "agent-default")
-        if name == DEFAULT_CAPSA_NAME {
-            return self.agent_name.as_ref().unwrap().to_string();
+        // Check if name already includes global marker (@shared/...)
+        if name.starts_with(GLOBAL_NAMESPACE_MARKER) {
+            return name.to_string();
         }
 
-        // Apply agent prefix to other names
-        format!("{}-{}", self.agent_name.as_ref().unwrap(), name)
+        // Check if name already has a slash (absolute path reference)
+        if name.contains('/') {
+            return name.to_string();
+        }
+
+        let agent = self.agent_name.as_ref().unwrap();
+
+        // Special case: ".default" maps to "agent/."
+        if name == DEFAULT_CAPSA_NAME {
+            return format!("{}/.", agent);
+        }
+
+        // Apply agent namespace: "agent/name"
+        format!("{}/{}", agent, name)
     }
 
     /// Resolve a capsa name to its actual path
     /// Returns None if the capsa doesn't exist
+    ///
+    /// Resolution order:
+    /// 1. Global namespace (@name) - treated as @shared/name or just name
+    /// 2. Agent namespace (agent/name) - agent's private capsas
+    /// 3. Root namespace (name) - shared capsas, accessible by all
     pub fn resolve_capsa(&self, name: &str) -> Option<CapsaRef> {
-        let prefixed_name = self.apply_agent_prefix(name);
-
-        // Try prefixed name first
-        if let Some(capsa) = self.try_resolve_capsa(&prefixed_name, name) {
-            return Some(capsa);
+        // Priority 1: Global namespace marker (@shared/notes)
+        if name.starts_with(GLOBAL_NAMESPACE_MARKER) {
+            let global_name = &name[1..]; // Strip @ marker
+            return self.try_resolve_capsa(global_name, name);
         }
 
-        // If prefixed name was different and not found, try unprefixed name as fallback
-        // This allows agents to access globally created capsas
-        if prefixed_name != name {
-            if let Some(capsa) = self.try_resolve_capsa(name, name) {
-                return Some(capsa);
+        // Priority 2: Apply agent namespace (if not global mode)
+        if !self.global {
+            if let Some(ref agent) = self.agent_name {
+                // Special case: agent's default (agent/.)
+                let capsa_name = if name == DEFAULT_CAPSA_NAME {
+                    "."
+                } else {
+                    name
+                };
+                let hierarchical = format!("{}/{}", agent, capsa_name);
+
+                if let Some(capsa) = self.try_resolve_capsa(&hierarchical, name) {
+                    return Some(capsa);
+                }
+
+                // Priority 3: Fallback to root namespace for shared capsas
+                // This allows agents to access globally created capsas
+                if let Some(capsa) = self.try_resolve_capsa(name, name) {
+                    return Some(capsa);
+                }
+
+                return None;
             }
         }
 
-        None
+        // Priority 4: No agent or global mode - resolve directly in root
+        self.try_resolve_capsa(name, name)
     }
 
     /// Helper to try resolving a specific capsa name
     fn try_resolve_capsa(&self, resolved_name: &str, original_name: &str) -> Option<CapsaRef> {
         let capsas_path = &self.home;
+        let full_path = capsas_path.join(resolved_name);
 
         // Check if it's a link file
-        let link_path = capsas_path.join(resolved_name);
-        if link_path.is_file() {
-            return self.resolve_link(&link_path, resolved_name);
+        if full_path.is_file() {
+            return self.resolve_link(&full_path, resolved_name);
         }
 
         // Check if it's a directory
-        let dir_path = link_path;
-        if dir_path.is_dir() {
+        if full_path.is_dir() {
             return Some(CapsaRef {
                 name: resolved_name.to_string(),
-                path: dir_path.clone(),
+                path: full_path.clone(),
                 is_link: false,
-                is_default: original_name == DEFAULT_CAPSA_NAME,
+                is_default: original_name == DEFAULT_CAPSA_NAME || resolved_name.ends_with("/."),
             });
         }
 
@@ -157,11 +212,12 @@ impl ResolveContext {
             name: name.to_string(),
             path: validated,
             is_link: true,
-            is_default: name == DEFAULT_CAPSA_NAME,
+            is_default: name == DEFAULT_CAPSA_NAME || name.ends_with("/."),
         })
     }
 
-    /// List all available capsas (excluding system .default if it's a directory)
+    /// List all available capsas
+    /// Returns flat list of paths like "agent1/.", "agent1/work", "@shared/common"
     pub fn list_capsas(&self) -> Vec<String> {
         let mut capsas = Vec::new();
 
@@ -170,13 +226,34 @@ impl ResolveContext {
                 let name = entry.file_name();
                 let name_str = name.to_string_lossy();
 
-                // Skip hidden files that aren't .default
-                if name_str.starts_with('.') && name_str != DEFAULT_CAPSA_NAME {
+                // Skip hidden files that aren't special
+                if name_str.starts_with('.') && name_str != DEFAULT_CAPSA_NAME && name_str != "." {
                     continue;
                 }
 
-                // Include both directories and link files
-                if entry.path().is_dir() || entry.path().is_file() {
+                let path = entry.path();
+
+                // It's a directory - list its contents (for agent namespaces)
+                if path.is_dir() {
+                    // List contents of subdirectories
+                    if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                        for sub_entry in sub_entries.filter_map(|e| e.ok()) {
+                            let sub_name = sub_entry.file_name();
+                            let sub_name_str = sub_name.to_string_lossy();
+
+                            // Skip hidden files in subdirs
+                            if sub_name_str.starts_with('.') && sub_name_str != "." {
+                                continue;
+                            }
+
+                            let sub_path = sub_entry.path();
+                            if sub_path.is_dir() || sub_path.is_file() {
+                                capsas.push(format!("{}/{}", name_str, sub_name_str));
+                            }
+                        }
+                    }
+                } else if path.is_file() {
+                    // It's a link file
                     capsas.push(name_str.into_owned());
                 }
             }
@@ -186,12 +263,30 @@ impl ResolveContext {
         capsas.dedup();
         capsas
     }
+
+    /// Check if a path is in hierarchical format (contains '/')
+    pub fn is_hierarchical(name: &str) -> bool {
+        name.contains('/')
+    }
+
+    /// Extract agent name from hierarchical path
+    /// Returns None if not a hierarchical path or if path starts with '@'
+    pub fn extract_agent(name: &str) -> Option<&str> {
+        if name.starts_with(GLOBAL_NAMESPACE_MARKER) {
+            return None;
+        }
+        // Only return agent if it's a hierarchical path (contains '/')
+        if !name.contains('/') {
+            return None;
+        }
+        name.split('/').next()
+    }
 }
 
 /// Reference to a resolved capsa
 #[derive(Debug, Clone)]
 pub struct CapsaRef {
-    /// The (possibly prefixed) name of the capsa
+    /// The (possibly hierarchical) name of the capsa
     pub name: String,
     /// The actual path to the capsa (may be external if link)
     pub path: PathBuf,
@@ -241,17 +336,17 @@ mod tests {
         let ctx = ResolveContext::new("/tmp".into(), false, false);
         assert_eq!(ctx.default_capsa_name(), "explicit-default");
 
-        // Priority 2: EMX_AGENT_NAME
+        // Priority 2: EMX_AGENT_NAME (now returns "agent/.")
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::set_var(ENV_AGENT_NAME, "my-agent");
         let ctx = ResolveContext::new("/tmp".into(), false, false);
-        assert_eq!(ctx.default_capsa_name(), "my-agent");
+        assert_eq!(ctx.default_capsa_name(), "my-agent/.");
 
-        // Priority 3: .default
+        // Priority 3: "." (root default)
         std::env::remove_var(ENV_NOTE_DEFAULT);
         std::env::remove_var(ENV_AGENT_NAME);
         let ctx = ResolveContext::new("/tmp".into(), false, false);
-        assert_eq!(ctx.default_capsa_name(), DEFAULT_CAPSA_NAME);
+        assert_eq!(ctx.default_capsa_name(), ".");
     }
 
     fn test_context(home: &str) -> ResolveContext {
@@ -265,17 +360,20 @@ mod tests {
     }
 
     #[test]
-    fn test_agent_prefix() {
+    fn test_agent_namespace() {
         // With agent, non-global
         let mut ctx = test_context("/tmp");
         ctx.agent_name = Some("agent1".to_string());
-        assert_eq!(ctx.apply_agent_prefix("my-notes"), "agent1-my-notes");
+        assert_eq!(ctx.apply_agent_namespace("my-notes"), "agent1/my-notes");
+
+        // Default capsa
+        assert_eq!(ctx.apply_agent_namespace(".default"), "agent1/.");
 
         // Without agent
         let ctx = test_context("/tmp");
-        assert_eq!(ctx.apply_agent_prefix("my-notes"), "my-notes");
+        assert_eq!(ctx.apply_agent_namespace("my-notes"), "my-notes");
 
-        // Global bypasses agent prefix
+        // Global bypasses agent namespace
         let ctx = ResolveContext {
             home: "/tmp".into(),
             global: true,
@@ -283,13 +381,25 @@ mod tests {
             default_override: None,
             json: false,
         };
-        assert_eq!(ctx.apply_agent_prefix("my-notes"), "my-notes");
+        assert_eq!(ctx.apply_agent_namespace("my-notes"), "my-notes");
 
-        // Special case: "default" maps to agent name
+        // Global namespace marker preserved
         let mut ctx = test_context("/tmp");
         ctx.agent_name = Some("agent1".to_string());
-        ctx.json = false;
-        assert_eq!(ctx.apply_agent_prefix(".default"), "agent1");
+        assert_eq!(ctx.apply_agent_namespace("@shared/notes"), "@shared/notes");
+    }
+
+    #[test]
+    fn test_helpers() {
+        // Test is_hierarchical
+        assert!(ResolveContext::is_hierarchical("agent1/work"));
+        assert!(ResolveContext::is_hierarchical("@shared/notes"));
+        assert!(!ResolveContext::is_hierarchical("work"));
+
+        // Test extract_agent
+        assert_eq!(ResolveContext::extract_agent("agent1/work"), Some("agent1"));
+        assert_eq!(ResolveContext::extract_agent("@shared/notes"), None);
+        assert_eq!(ResolveContext::extract_agent("work"), None);
     }
 
     #[test]
