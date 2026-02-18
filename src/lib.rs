@@ -4,9 +4,11 @@ pub mod markdown;
 pub mod resolve;
 pub mod util;
 pub mod note_resolver;
+pub mod engine;
 
 pub use cli::{Cli, Command, CapsaCommand, TagCommand, LinkCommand, TaskCommand};
 pub use edit::{EditOp, ValidationError, apply_edits};
+pub use engine::{CapsaEngine, Tags, Tag, TaskFile};
 pub use markdown::{
     MarkdownHeading, MarkdownLink,
     extract_references, extract_headings, extract_links,

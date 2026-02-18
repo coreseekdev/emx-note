@@ -1,12 +1,13 @@
 //! Task show command
 
 use std::io;
-use std::path::Path;
-use super::{TaskFileReader, TaskStatus, task_file_path};
+use emx_note::CapsaEngine;
+use super::{TaskFileReader, TaskStatus};
 
 /// Show task details
-pub fn run(capsa_path: &Path, task_id: &str) -> io::Result<()> {
-    let path = task_file_path(capsa_path);
+pub fn run(capsa: &CapsaEngine, task_id: &str) -> io::Result<()> {
+    let task_file = capsa.task_file();
+    let path = task_file.file();
 
     if !path.exists() {
         return Err(io::Error::new(

@@ -1,9 +1,7 @@
 //! Permanent note command module
 
-use std::fs;
 use std::io::{self, Read};
-use chrono::Local;
-use emx_note::util;
+use emx_note::{CapsaEngine, util};
 
 pub fn run(
     ctx: &emx_note::ResolveContext,
@@ -11,42 +9,17 @@ pub fn run(
     title: Option<String>,
     source: Option<String>,
 ) -> io::Result<()> {
-    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-    let now = Local::now();
-    let timestamp = now.format("%Y%m%d%H%M%S").to_string();
-
-    // Generate filename
-    let filename = if let Some(t) = title {
-        format!("{}.md", util::slugify(&t))
-    } else {
-        format!("{}.md", timestamp)
-    };
-
-    // Determine the directory path
-    let note_dir = if let Some(ref src) = source {
-        // With source: note/{hash}/
-        let hash = util::abbreviate_hash(&util::hash_source(src));
-        capsa_ref.path.join("note").join(&hash)
-    } else {
-        // Without source: note/
-        capsa_ref.path.join("note")
-    };
-
-    // Create directory and note file
-    fs::create_dir_all(&note_dir)?;
-    let note_path = note_dir.join(&filename);
+    let capsa = CapsaEngine::new(super::resolve::resolve_capsa(ctx, caps)?);
 
     // Read content from stdin (empty if no data)
     let content = read_stdin_content()?;
 
-    // Write the file
-    fs::write(&note_path, content)?;
-
-    // If source is provided, create a .source file with the original source string
-    if let Some(src) = source {
-        let source_file = note_dir.join(".source");
-        fs::write(&source_file, &src)?;
-    }
+    // Create the permanent note
+    let note_path = capsa.create_permanent_note(
+        title.as_deref(),
+        source.as_deref(),
+        &content,
+    )?;
 
     // Output full path for shell pipeline compatibility
     println!("{}", util::display_path(&note_path));

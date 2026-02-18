@@ -1,58 +1,16 @@
 //! Daily note command module
 
 use std::io::{self, Read};
-use std::fs;
-use chrono::{Local, DateTime, NaiveDateTime, TimeZone};
-use emx_note::{CapsaRef, EditOp, apply_edits};
-use emx_note::util;
-
-/// Get current timestamp, allowing override via EMX_TASK_TIMESTAMP for testing
-fn get_timestamp() -> DateTime<Local> {
-    if let Ok(ts) = std::env::var("EMX_TASK_TIMESTAMP") {
-        // Parse "YYYY-MM-DD HH:MM" format
-        if let Ok(naive) = NaiveDateTime::parse_from_str(&ts, "%Y-%m-%d %H:%M") {
-            // Use from_local_datetime to treat the input as local time, not UTC
-            return Local.from_local_datetime(&naive).single().unwrap_or_else(|| Local::now());
-        }
-    }
-    Local::now()
-}
+use emx_note::{CapsaEngine, util};
 
 pub fn run(ctx: &emx_note::ResolveContext, caps: Option<&str>, title: Option<String>) -> io::Result<()> {
-    let capsa_ref = super::resolve::resolve_capsa(ctx, caps)?;
-    let now = get_timestamp();
-    let date_str = now.format("%Y%m%d").to_string();
-    let time_str = now.format("%H%M%S").to_string();
-    let date_display = now.format("%Y-%m-%d").to_string();
-
-    // Use provided title or default
-    let title = title.unwrap_or_else(|| "Daily Note".to_string());
-
-    // Create slug (empty if default title)
-    let slug = if title == "Daily Note" {
-        String::new()
-    } else {
-        format!("-{}", util::slugify(&title))
-    };
-
-    // Generate filename: HHmmSS[-title].md
-    let filename = format!("{}{}.md", time_str, slug);
-
-    // Create daily subdirectory: #daily/YYYYMMDD/
-    let daily_dir = capsa_ref.path.join("#daily").join(&date_str);
-    fs::create_dir_all(&daily_dir)?;
-
-    // Create note file
-    let note_path = daily_dir.join(&filename);
+    let capsa = CapsaEngine::new(super::resolve::resolve_capsa(ctx, caps)?);
 
     // Read content from stdin (empty if no data)
     let content = read_stdin_content()?;
 
-    // Write the file
-    fs::write(&note_path, content)?;
-
-    // Update daily link file (note/#daily.md)
-    update_daily_link(&capsa_ref, &date_str, &date_display, &filename, &title)?;
+    // Create the daily note
+    let note_path = capsa.create_daily_note(title.as_deref(), &content)?;
 
     // Output full path for shell pipeline compatibility
     println!("{}", util::display_path(&note_path));
@@ -69,37 +27,4 @@ fn read_stdin_content() -> io::Result<String> {
         Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(String::new()),
         Err(e) => Err(e),
     }
-}
-
-/// Update the daily link file (note/#daily.md) with new note link
-fn update_daily_link(
-    capsa_ref: &CapsaRef,
-    date_str: &str,
-    _date_display: &str,
-    filename: &str,
-    title: &str,
-) -> io::Result<()> {
-    let note_dir = capsa_ref.path.join("note");
-    let daily_link_path = note_dir.join("#daily.md");
-
-    // Ensure note/ directory exists
-    fs::create_dir_all(&note_dir)?;
-
-    // The link line (unique content to append)
-    let link_line = format!("- [{}](#daily/{}/{})", title, date_str, filename);
-
-    if daily_link_path.exists() {
-        // Append to existing file using EditOp
-        let content = fs::read_to_string(&daily_link_path)?;
-        let edits = vec![EditOp::append(&link_line)];
-        let new_content = apply_edits(&content, edits)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-        fs::write(&daily_link_path, new_content)?;
-    } else {
-        // Create new file with title and link
-        let content = format!("# Daily Notes\n\n{}", link_line);
-        fs::write(&daily_link_path, content)?;
-    }
-
-    Ok(())
 }

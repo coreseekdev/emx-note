@@ -1,23 +1,24 @@
 //! Task release command
 
 use std::io;
-use std::path::Path;
-use emx_note::{EditOp, apply_edits};
-use super::{TaskFileReader, load_task_content, save_task_content, get_agent_name, get_timestamp};
+use emx_note::{EditOp, apply_edits, CapsaEngine};
+use super::{TaskFileReader};
 use super::log;
 
 /// Release task(s)
 pub fn run(
-    capsa_path: &Path,
+    capsa: &CapsaEngine,
     task_ids: &[String],
     done: bool,
     force: bool,
     dry_run: bool,
 ) -> io::Result<()> {
+    let task_file = capsa.task_file();
+
     // If no agent name set and not marking done, behave like log for single task
-    let agent_marker = get_agent_name();
+    let agent_marker = task_file.get_agent_name();
     if agent_marker.is_none() && !done && task_ids.len() == 1 {
-        return log::run(capsa_path, &task_ids[0]);
+        return log::run(capsa, &task_ids[0]);
     }
 
     // Check --force with multiple tasks
@@ -28,7 +29,7 @@ pub fn run(
         ));
     }
 
-    let content = load_task_content(capsa_path)?;
+    let content = task_file.load()?;
     let reader = TaskFileReader::new(content.clone());
 
     if dry_run {
@@ -99,7 +100,7 @@ pub fn run(
 
             // Add completion comment if --done and no agent
             if done && agent_marker.is_none() {
-                let timestamp = get_timestamp();
+                let timestamp = task_file.get_timestamp();
                 let comment = format!("  - {} Completed by @anonymous", timestamp);
                 // Find insert point after the task line
                 let lines: Vec<&str> = current_content.lines().collect();
@@ -140,7 +141,7 @@ pub fn run(
 
             // Add completion comment if no agent
             if agent_marker.is_none() {
-                let timestamp = get_timestamp();
+                let timestamp = task_file.get_timestamp();
                 let comment = format!("  - {} Completed by @anonymous", timestamp);
                 edits.push(EditOp::insert_at_line(insert_point + lines_inserted + 1, comment));
             }
@@ -152,12 +153,12 @@ pub fn run(
     }
 
     if released_count > 0 {
-        save_task_content(capsa_path, &current_content)?;
+        task_file.save(&current_content)?;
     }
 
     // Show log after marking done for single task
     if done && task_ids.len() == 1 {
-        return log::run(capsa_path, &task_ids[0]);
+        return log::run(capsa, &task_ids[0]);
     }
 
     for task_id in task_ids {

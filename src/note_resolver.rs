@@ -10,7 +10,18 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use chrono::Local;
+use chrono::{Local, NaiveDateTime, TimeZone};
+
+/// Get current date, allowing override via EMX_TASK_TIMESTAMP for testing
+fn get_current_date() -> String {
+    if let Ok(ts) = std::env::var("EMX_TASK_TIMESTAMP") {
+        // Parse "YYYY-MM-DD HH:MM" format
+        if let Ok(naive) = NaiveDateTime::parse_from_str(&ts, "%Y-%m-%d %H:%M") {
+            return Local.from_local_datetime(&naive).single().unwrap_or_else(|| Local::now()).format("%Y%m%d").to_string();
+        }
+    }
+    Local::now().format("%Y%m%d").to_string()
+}
 
 /// Resolution result
 #[derive(Debug, Clone)]
@@ -144,7 +155,7 @@ pub fn resolve_note(
     // Rule 2: Time prefix HHmmSS... (starts with 6 digits, or fewer digits)
     // Check if it starts with digits (time prefix)
     if let Some(time_prefix) = extract_time_prefix(&reference) {
-        let today = Local::now().format("%Y%m%d").to_string();
+        let today = get_current_date();
         return resolve_in_date_dir(capsa_path, &today, &time_prefix, extensions);
     }
 
@@ -347,7 +358,7 @@ fn resolve_by_title(
     extensions: &[&str],
 ) -> io::Result<ResolvedNote> {
     // Rule 3a: Try #daily/{current_date}/ first (with timestamp prefix handling)
-    let today = Local::now().format("%Y%m%d").to_string();
+    let today = get_current_date();
     let daily_dir = capsa_path.join("#daily").join(&today);
 
     if daily_dir.exists() {

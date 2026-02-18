@@ -1,19 +1,19 @@
 //! Task take command
 
 use std::io;
-use std::path::Path;
-use emx_note::{EditOp, apply_edits};
-use super::{TaskFileReader, TaskStatus, load_task_content, save_task_content, get_agent_name};
+use emx_note::{EditOp, apply_edits, CapsaEngine};
+use super::{TaskFileReader, TaskStatus};
 
 /// Take ownership of a task
 pub fn run(
-    capsa_path: &Path,
+    capsa: &CapsaEngine,
     task_id: &str,
     title: Option<&str>,
     header: Option<&str>,
     dry_run: bool,
 ) -> io::Result<()> {
-    let content = load_task_content(capsa_path)?;
+    let task_file = capsa.task_file();
+    let content = task_file.load()?;
     let reader = TaskFileReader::new(content.clone());
 
     // Find task in references
@@ -22,7 +22,7 @@ pub fn run(
     })?;
 
     // Get agent name first (needed for ownership check)
-    let agent_marker = get_agent_name();
+    let agent_marker = task_file.get_agent_name();
 
     // Check if already taken (only when agent name is set)
     if agent_marker.is_some() {
@@ -86,7 +86,7 @@ pub fn run(
             let edits = vec![EditOp::replace(&existing_line, &updated_line)];
             let new_content = apply_edits(&content, edits)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-            save_task_content(capsa_path, &new_content)?;
+            task_file.save(&new_content)?;
         }
     } else {
         // Insert new task entry
@@ -114,7 +114,7 @@ pub fn run(
 
         let new_content = apply_edits(&content, edits)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-        save_task_content(capsa_path, &new_content)?;
+        task_file.save(&new_content)?;
     }
 
     println!("{}", task_id);

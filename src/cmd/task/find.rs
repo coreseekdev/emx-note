@@ -1,12 +1,13 @@
 //! Task find command
 
 use std::io;
-use std::path::Path;
-use super::{TaskFileReader, TaskStatus, task_file_path};
+use emx_note::CapsaEngine;
+use super::{TaskFileReader, TaskStatus};
 
 /// Find tasks by note reference
-pub fn run(capsa_path: &Path, node_ref: &str) -> io::Result<()> {
-    let path = task_file_path(capsa_path);
+pub fn run(capsa: &CapsaEngine, node_ref: &str) -> io::Result<()> {
+    let task_file = capsa.task_file();
+    let path = task_file.file();
 
     if !path.exists() {
         eprintln!("No tasks found matching '{}'", node_ref);

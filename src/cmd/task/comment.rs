@@ -1,20 +1,20 @@
 //! Task comment command
 
 use std::io;
-use std::path::Path;
-use emx_note::{EditOp, apply_edits};
-use super::{TaskFileReader, TaskStatus, load_task_content, save_task_content, get_timestamp};
+use emx_note::{EditOp, apply_edits, CapsaEngine};
+use super::{TaskFileReader, TaskStatus};
 use super::log;
 
 /// Add comment to task
 pub fn run(
-    capsa_path: &Path,
+    capsa: &CapsaEngine,
     task_id: &str,
     message: &str,
     git: Option<&str>,
     dry_run: bool,
 ) -> io::Result<()> {
-    let content = load_task_content(capsa_path)?;
+    let task_file = capsa.task_file();
+    let content = task_file.load()?;
     let reader = TaskFileReader::new(content.clone());
 
     // Find task
@@ -31,7 +31,7 @@ pub fn run(
     }
 
     // Format comment
-    let timestamp = get_timestamp();
+    let timestamp = task_file.get_timestamp();
     let comment = if let Some(hash) = git {
         format!("  - {} {} [{}]", timestamp, message, hash)
     } else {
@@ -67,9 +67,9 @@ pub fn run(
         let edits = vec![EditOp::insert_at_line(insert_at, comment)];
         let new_content = apply_edits(&content, edits)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-        save_task_content(capsa_path, &new_content)?;
+        task_file.save(&new_content)?;
     }
 
     // Show log after adding comment
-    log::run(capsa_path, task_id)
+    log::run(capsa, task_id)
 }

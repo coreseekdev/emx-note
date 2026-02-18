@@ -1,17 +1,18 @@
 //! Task list command
 
 use std::io;
-use std::path::Path;
-use super::{TaskFileReader, TaskStatus, task_file_path};
+use emx_note::CapsaEngine;
+use super::{TaskFileReader, TaskStatus};
 
 /// List tasks
 pub fn run(
-    capsa_path: &Path,
+    capsa: &CapsaEngine,
     status: Option<&str>,
     oneline: bool,
     owner: Option<&str>,
 ) -> io::Result<()> {
-    let path = task_file_path(capsa_path);
+    let task_file = capsa.task_file();
+    let path = task_file.file();
 
     if !path.exists() {
         return Ok(()); // No tasks file, empty result
